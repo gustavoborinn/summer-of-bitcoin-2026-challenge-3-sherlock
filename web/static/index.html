@@ -4,31 +4,38 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SHERLOCK — Bitcoin Chain Analysis</title>
-  <script src="/vendor/d3.min.js"></script>
+  <title>Sherlock — Bitcoin Chain Analysis</title>
   <style>
     :root {
-      --bg: #0a0b0d;
-      --bg2: #0f1115;
-      --bg3: #151820;
-      --border: #1e2330;
-      --border2: #252b3a;
+      --ink: #080a0f;
+      --ink2: #0c0f17;
+      --ink3: #111520;
+      --ink4: #171c2a;
+      --ink5: #1d2233;
+      --line: #1e2436;
+      --line2: #283048;
+      --muted: #3a4260;
+      --dim: #58637e;
+      --soft: #8a95b0;
+      --text: #c2ccde;
+      --bright: #edf1fb;
       --amber: #f7931a;
-      --amber-dim: #a05c0a;
-      --amber-glow: #f7931a33;
-      --text: #c8cdd8;
-      --text-dim: #5a6075;
-      --text-bright: #edf0f7;
-      --red: #e53935;
-      --purple: #9c27b0;
-      --green: #43a047;
-      --yellow: #fdd835;
-      --cyan: #00bcd4;
-      --blue: #1e88e5;
-      --grey: #546e7a;
-      --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", "Consolas", monospace;
-      --font-ui: "Segoe UI", system-ui, -apple-system, sans-serif;
-      --radius: 3px;
+      --amber2: #d97c0d;
+      --amber3: #ffa94d;
+      --abg: rgba(247, 147, 26, .08);
+      --abg2: rgba(247, 147, 26, .14);
+      --red: #f0505c;
+      --purple: #a855f7;
+      --teal: #14b8a6;
+      --blue: #3b82f6;
+      --yellow: #eab308;
+      --green: #22c55e;
+      --grey: #64748b;
+      --r: 8px;
+      --rs: 5px;
+      --mono: "Cascadia Code", "JetBrains Mono", "Fira Code", Consolas, "Courier New", monospace;
+      --ui: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      --ease: cubic-bezier(.4, 0, .2, 1);
     }
 
     *,
@@ -36,1041 +43,1388 @@
     *::after {
       box-sizing: border-box;
       margin: 0;
-      padding: 0;
+      padding: 0
     }
 
     html,
     body {
       height: 100%;
-      background: var(--bg);
+      background: var(--ink);
       color: var(--text);
-      font-family: var(--font-mono);
+      font-family: var(--ui);
       font-size: 13px;
       line-height: 1.5;
-      overflow: hidden;
+      overflow: hidden
     }
 
-    /* Scanline overlay */
-    body::after {
-      content: '';
-      position: fixed;
-      inset: 0;
-      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 0, 0, 0.03) 2px, rgba(0, 0, 0, 0.03) 4px);
-      pointer-events: none;
-      z-index: 9999;
-    }
-
-    /* Scrollbar */
     ::-webkit-scrollbar {
-      width: 5px;
-      height: 5px;
+      width: 4px;
+      height: 4px
     }
 
     ::-webkit-scrollbar-track {
-      background: var(--bg2);
+      background: transparent
     }
 
     ::-webkit-scrollbar-thumb {
-      background: var(--border2);
-      border-radius: 2px;
+      background: var(--line2);
+      border-radius: 4px
     }
 
     ::-webkit-scrollbar-thumb:hover {
-      background: var(--amber-dim);
+      background: var(--muted)
     }
 
-    /* ─── Layout ─────────────────────────────────────── */
-    #app {
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
+    /* ── SHELL ── */
+    #shell {
+      display: grid;
+      grid-template-rows: 54px 1fr;
+      height: 100vh
     }
 
-    /* ─── Header ─────────────────────────────────────── */
-    #header {
-      flex-shrink: 0;
+    #body {
+      display: grid;
+      grid-template-columns: 260px 1fr 288px;
+      overflow: hidden
+    }
+
+    /* ── TOPBAR ── */
+    #topbar {
       display: flex;
       align-items: center;
-      gap: 20px;
+      gap: 14px;
       padding: 0 20px;
-      height: 48px;
-      background: var(--bg2);
-      border-bottom: 1px solid var(--border);
+      background: var(--ink2);
+      border-bottom: 1px solid var(--line);
       position: relative;
-      z-index: 10;
+      z-index: 30
     }
 
-    #header::after {
+    #topbar::after {
       content: '';
       position: absolute;
       bottom: 0;
       left: 0;
-      right: 0;
+      width: 220px;
       height: 1px;
-      background: linear-gradient(90deg, var(--amber) 0%, transparent 60%);
-      opacity: 0.4;
+      background: linear-gradient(90deg, var(--amber), transparent)
     }
 
-    .logo {
-      font-size: 16px;
+    .wordmark {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--mono);
+      font-size: 14px;
       font-weight: 700;
-      letter-spacing: 0.15em;
+      letter-spacing: .05em;
+      color: var(--bright)
+    }
+
+    .wordmark .hex {
       color: var(--amber);
-      text-transform: uppercase;
-      white-space: nowrap;
+      font-size: 18px;
+      line-height: 1
     }
 
-    .logo span {
-      color: var(--text-dim);
+    .wordmark small {
+      font-size: 10px;
+      color: var(--dim);
       font-weight: 400;
-      font-size: 11px;
-      letter-spacing: 0.05em;
-      margin-left: 8px;
+      letter-spacing: .04em;
+      margin-left: 2px
     }
 
-    .header-sep {
+    .divv {
       width: 1px;
-      height: 24px;
-      background: var(--border2);
+      height: 26px;
+      background: var(--line2)
     }
 
-    .select-wrap {
-      position: relative;
+    .sel-wrap {
+      position: relative
     }
 
-    .select-wrap select {
+    .sel-wrap select {
       appearance: none;
-      background: var(--bg3);
-      border: 1px solid var(--border2);
-      color: var(--text-bright);
-      font-family: var(--font-mono);
-      font-size: 12px;
-      padding: 5px 28px 5px 10px;
-      border-radius: var(--radius);
+      background: var(--ink3);
+      border: 1px solid var(--line2);
+      color: var(--bright);
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 5px 28px 5px 12px;
+      border-radius: 20px;
       cursor: pointer;
-      transition: border-color 0.2s;
-      min-width: 130px;
+      transition: border-color .2s;
+      min-width: 158px
     }
 
-    .select-wrap select:focus {
+    .sel-wrap select:focus {
       outline: none;
-      border-color: var(--amber);
+      border-color: var(--amber)
     }
 
-    .select-wrap::after {
+    .sel-wrap::after {
       content: '▾';
       position: absolute;
-      right: 9px;
+      right: 10px;
       top: 50%;
       transform: translateY(-50%);
       color: var(--amber);
-      font-size: 11px;
-      pointer-events: none;
+      font-size: 9px;
+      pointer-events: none
     }
 
-    .label {
+    .fl {
       font-size: 10px;
-      letter-spacing: 0.08em;
+      letter-spacing: .1em;
       text-transform: uppercase;
-      color: var(--text-dim);
+      color: var(--dim)
     }
 
-    .status-dot {
-      width: 7px;
-      height: 7px;
+    .sbadge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      background: var(--ink3);
+      border: 1px solid var(--line);
+      font-size: 10px;
+      color: var(--dim);
+      font-family: var(--mono);
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      margin-left: auto;
+      transition: all .3s
+    }
+
+    .sbadge.loading {
+      border-color: var(--amber2);
+      color: var(--amber)
+    }
+
+    .sbadge.error {
+      border-color: var(--red);
+      color: var(--red)
+    }
+
+    .sbadge.ready {
+      border-color: var(--teal);
+      color: var(--teal)
+    }
+
+    .pls {
+      width: 6px;
+      height: 6px;
       border-radius: 50%;
-      background: var(--green);
-      box-shadow: 0 0 6px var(--green);
+      background: var(--dim);
       flex-shrink: 0;
+      transition: background .3s
     }
 
-    .status-dot.loading {
+    .sbadge.loading .pls {
       background: var(--amber);
-      box-shadow: 0 0 6px var(--amber);
-      animation: pulse 1s ease-in-out infinite;
+      animation: blink 1s ease-in-out infinite
     }
 
-    .status-dot.error {
-      background: var(--red);
-      box-shadow: 0 0 6px var(--red);
+    .sbadge.error .pls {
+      background: var(--red)
     }
 
-    @keyframes pulse {
+    .sbadge.ready .pls {
+      background: var(--teal);
+      box-shadow: 0 0 6px var(--teal)
+    }
+
+    @keyframes blink {
 
       0%,
       100% {
-        opacity: 1;
+        opacity: 1
       }
 
       50% {
-        opacity: 0.3;
+        opacity: .2
       }
     }
 
-    .ml-auto {
-      margin-left: auto;
-    }
-
-    .header-status {
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      font-size: 11px;
-      color: var(--text-dim);
-    }
-
-    /* ─── Main ───────────────────────────────────────── */
-    #main {
-      flex: 1;
-      display: grid;
-      grid-template-columns: 220px 1fr 220px;
-      grid-template-rows: 1fr;
-      overflow: hidden;
-    }
-
-    /* ─── Left Sidebar ───────────────────────────────── */
-    #sidebar-left {
-      background: var(--bg2);
-      border-right: 1px solid var(--border);
+    /* ── LEFT SIDEBAR ── */
+    #lsb {
+      background: var(--ink2);
+      border-right: 1px solid var(--line);
       display: flex;
       flex-direction: column;
+      overflow: hidden
+    }
+
+    .sb-sec {
+      border-bottom: 1px solid var(--line);
+      padding: 14px 15px;
+      flex-shrink: 0
+    }
+
+    .sb-sec.grow {
+      flex: 1;
       overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      border-bottom: none;
+      min-height: 0
     }
 
-    .sidebar-section {
-      border-bottom: 1px solid var(--border);
-      padding: 12px;
+    .sb-sec.grow .sec-body {
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0
     }
 
-    .sidebar-title {
+    .sec-ttl {
       font-size: 9px;
-      letter-spacing: 0.15em;
+      letter-spacing: .16em;
       text-transform: uppercase;
       color: var(--amber);
-      margin-bottom: 10px;
+      font-weight: 700;
+      margin-bottom: 11px;
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px
     }
 
-    .sidebar-title::after {
+    .sec-ttl::after {
       content: '';
       flex: 1;
       height: 1px;
-      background: var(--border2);
+      background: linear-gradient(90deg, var(--line2), transparent)
     }
 
-    /* Stat cards */
-    .stat-grid {
+    /* KPI grid */
+    .kpi-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 6px;
+      gap: 7px
     }
 
-    .stat-card {
-      background: var(--bg3);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 8px 9px;
+    .kpi {
+      background: var(--ink3);
+      border: 1px solid var(--line);
+      border-radius: var(--rs);
+      padding: 9px 10px;
+      transition: border-color .2s, transform .15s
     }
 
-    .stat-card .s-label {
+    .kpi:hover {
+      border-color: var(--line2);
+      transform: translateY(-1px)
+    }
+
+    .kpi-lbl {
       font-size: 9px;
       text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--text-dim);
+      letter-spacing: .09em;
+      color: var(--dim)
     }
 
-    .stat-card .s-val {
-      font-size: 15px;
+    .kpi-val {
+      font-family: var(--mono);
+      font-size: 18px;
       font-weight: 700;
-      color: var(--amber);
-      line-height: 1.3;
-      margin-top: 2px;
+      color: var(--bright);
+      line-height: 1.15;
+      margin-top: 2px
     }
 
-    .stat-card .s-val.small {
-      font-size: 12px;
+    .kpi-val.am {
+      color: var(--amber)
     }
 
-    /* Blocks list */
-    #blocks-list {
-      overflow-y: auto;
-      flex: 1;
-    }
-
-    .block-item {
-      padding: 9px 12px;
-      border-bottom: 1px solid var(--border);
-      cursor: pointer;
-      transition: background 0.15s;
-      position: relative;
-    }
-
-    .block-item:hover {
-      background: var(--bg3);
-    }
-
-    .block-item.active {
-      background: var(--bg3);
-      border-left: 2px solid var(--amber);
-      padding-left: 10px;
-    }
-
-    .block-item .b-height {
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--text-bright);
-    }
-
-    .block-item .b-hash {
+    .kpi-sub {
       font-size: 10px;
-      color: var(--text-dim);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 180px;
+      color: var(--muted);
+      margin-top: 1px
     }
 
-    .block-item .b-meta {
-      display: flex;
-      gap: 8px;
-      margin-top: 3px;
+    /* Fee mini-strip */
+    .fee-strip {
+      margin-top: 11px;
+      background: var(--ink3);
+      border: 1px solid var(--line);
+      border-radius: var(--rs);
+      padding: 9px 12px
     }
 
-    .block-item .b-tag {
+    .fee-row {
+      display: grid;
+      grid-template-columns: 38px 1fr 42px;
+      align-items: center;
+      gap: 7px;
+      margin-bottom: 5px
+    }
+
+    .fee-row:last-child {
+      margin-bottom: 0
+    }
+
+    .fee-lbl {
       font-size: 9px;
-      padding: 1px 5px;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      color: var(--dim)
+    }
+
+    .fee-track {
+      height: 3px;
+      background: var(--line2);
       border-radius: 2px;
-      background: var(--bg);
-      border: 1px solid var(--border2);
-      color: var(--text-dim);
+      overflow: hidden;
+      position: relative
     }
 
-    .block-item .b-tag.flagged {
-      border-color: var(--amber-dim);
+    .fee-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width .5s var(--ease)
+    }
+
+    .fee-val {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--soft);
+      text-align: right
+    }
+
+    /* Heuristic hits */
+    .hit-item {
+      padding: 7px 0;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      cursor: default
+    }
+
+    .hit-item:last-child {
+      border-bottom: none
+    }
+
+    .hit-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between
+    }
+
+    .hit-name {
+      font-size: 11px;
+      color: var(--text);
+      font-weight: 500
+    }
+
+    .hit-count {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
       color: var(--amber);
+      background: var(--abg);
+      border: 1px solid rgba(247, 147, 26, .2);
+      padding: 1px 7px;
+      border-radius: 3px
     }
 
-    /* ─── Center Panel ───────────────────────────────── */
-    #center {
+    .hit-bar {
+      height: 4px;
+      background: var(--line);
+      border-radius: 2px;
+      overflow: hidden
+    }
+
+    .hit-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width .5s var(--ease)
+    }
+
+    .hit-pct {
+      font-size: 9px;
+      color: var(--muted);
+      font-family: var(--mono)
+    }
+
+    /* ── MAIN ── */
+    #main {
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      background: var(--bg);
+      background: var(--ink);
+      position: relative
     }
 
-    /* Stats bar */
-    #stats-bar {
+    #main::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background-image: radial-gradient(circle at 70% 20%, rgba(247, 147, 26, .025) 0%, transparent 60%),
+        radial-gradient(circle at 20% 80%, rgba(20, 184, 166, .02) 0%, transparent 50%);
+    }
+
+    #main>* {
+      position: relative;
+      z-index: 1
+    }
+
+    #insights {
       flex-shrink: 0;
-      padding: 12px 16px;
-      background: var(--bg2);
-      border-bottom: 1px solid var(--border);
+      padding: 16px 18px 0;
       display: grid;
       grid-template-columns: repeat(4, 1fr);
-      gap: 10px;
+      gap: 9px
     }
 
-    .metric-card {
-      background: var(--bg3);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 9px 12px;
+    .ins {
+      background: var(--ink2);
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      padding: 13px 15px;
       position: relative;
       overflow: hidden;
+      transition: border-color .2s, transform .15s
     }
 
-    .metric-card::before {
+    .ins:hover {
+      border-color: var(--line2);
+      transform: translateY(-1px)
+    }
+
+    .ins::before {
       content: '';
       position: absolute;
       top: 0;
       left: 0;
       right: 0;
       height: 2px;
-      background: linear-gradient(90deg, var(--amber), transparent);
-      opacity: 0.5;
+      background: linear-gradient(90deg, var(--amber) 0%, var(--amber2) 40%, transparent 100%);
+      opacity: .5
     }
 
-    .metric-card .m-label {
-      font-size: 9px;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: var(--text-dim);
+    .ins-ico {
+      font-size: 16px;
+      margin-bottom: 6px;
+      opacity: .6
     }
 
-    .metric-card .m-val {
-      font-size: 20px;
-      font-weight: 700;
-      color: var(--text-bright);
-      line-height: 1.3;
-    }
-
-    .metric-card .m-val .unit {
-      font-size: 11px;
-      color: var(--text-dim);
-      font-weight: 400;
-      margin-left: 3px;
-    }
-
-    .metric-card .m-sub {
+    .ins-lbl {
       font-size: 10px;
-      color: var(--amber);
-      margin-top: 1px;
-    }
-
-    /* Fee bar */
-    #fee-row {
-      flex-shrink: 0;
-      padding: 8px 16px;
-      background: var(--bg2);
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      gap: 14px;
-    }
-
-    .fee-label {
-      font-size: 9px;
       text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: var(--amber);
-      white-space: nowrap;
+      letter-spacing: .09em;
+      color: var(--dim)
     }
 
-    .fee-stats {
-      display: flex;
-      gap: 16px;
-    }
-
-    .fee-stat {
-      font-size: 11px;
-      color: var(--text-dim);
-    }
-
-    .fee-stat span {
-      color: var(--text-bright);
+    .ins-val {
+      font-family: var(--mono);
+      font-size: 22px;
       font-weight: 700;
+      color: var(--bright);
+      line-height: 1.1;
+      margin-top: 2px
     }
 
-    .fee-bar-wrap {
-      flex: 1;
-      height: 8px;
-      background: var(--bg3);
-      border-radius: 2px;
-      position: relative;
-      border: 1px solid var(--border);
+    .ins-sub {
+      font-size: 10px;
+      color: var(--soft);
+      margin-top: 3px
     }
 
-    .fee-bar-fill {
-      position: absolute;
-      left: 0;
-      top: 0;
-      height: 100%;
-      background: linear-gradient(90deg, var(--amber-dim), var(--amber));
-      border-radius: 2px;
-      transition: width 0.5s ease;
+    .ins-sub .hi {
+      color: var(--amber)
     }
 
-    .fee-bar-median {
-      position: absolute;
-      top: -3px;
-      width: 2px;
-      height: 14px;
-      background: var(--amber);
-      transform: translateX(-50%);
-      border-radius: 1px;
-    }
-
-    .fee-bar-median::after {
-      content: attr(data-val);
-      position: absolute;
-      bottom: 100%;
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: 9px;
-      color: var(--amber);
-      white-space: nowrap;
-      margin-bottom: 2px;
-    }
-
-    /* Filters */
-    #filter-row {
+    /* Classification bar */
+    #cls-strip {
       flex-shrink: 0;
-      padding: 8px 16px;
-      background: var(--bg2);
-      border-bottom: 1px solid var(--border);
+      margin: 12px 18px 0;
+      background: var(--ink2);
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      padding: 12px 15px
+    }
+
+    .cls-hd {
       display: flex;
       align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
+      justify-content: space-between;
+      margin-bottom: 8px
     }
 
-    .search-wrap {
+    .cls-hd-lbl {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--soft);
+      text-transform: uppercase;
+      letter-spacing: .09em
+    }
+
+    .cls-hd-sub {
+      font-size: 10px;
+      color: var(--muted)
+    }
+
+    .cls-bar {
+      display: flex;
+      height: 6px;
+      border-radius: 3px;
+      overflow: hidden;
+      gap: 1px
+    }
+
+    .cls-seg {
+      height: 100%;
+      transition: width .6s var(--ease);
+      cursor: pointer
+    }
+
+    .cls-seg:hover {
+      filter: brightness(1.3)
+    }
+
+    .cls-leg {
+      display: flex;
+      gap: 12px;
+      margin-top: 8px;
+      flex-wrap: wrap
+    }
+
+    .cl-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      color: var(--soft);
+      cursor: pointer;
+      transition: color .15s
+    }
+
+    .cl-item:hover {
+      color: var(--bright)
+    }
+
+    .cl-item.off {
+      opacity: .28
+    }
+
+    .cl-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 2px;
+      flex-shrink: 0
+    }
+
+    .cl-cnt {
+      font-family: var(--mono);
+      color: var(--dim);
+      font-size: 9px
+    }
+
+    /* Filter bar */
+    #fbar {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 10px 18px
+    }
+
+    .sbox {
       position: relative;
-      flex: 0 0 220px;
+      flex: 0 0 230px
     }
 
-    .search-wrap input {
+    .sbox input {
       width: 100%;
-      background: var(--bg3);
-      border: 1px solid var(--border2);
-      color: var(--text-bright);
-      font-family: var(--font-mono);
+      background: var(--ink2);
+      border: 1px solid var(--line2);
+      color: var(--bright);
+      font-family: var(--mono);
       font-size: 11px;
-      padding: 5px 8px 5px 26px;
-      border-radius: var(--radius);
-      transition: border-color 0.2s;
+      padding: 6px 10px 6px 30px;
+      border-radius: var(--rs);
+      transition: border-color .2s
     }
 
-    .search-wrap input::placeholder {
-      color: var(--text-dim);
+    .sbox input::placeholder {
+      color: var(--muted)
     }
 
-    .search-wrap input:focus {
+    .sbox input:focus {
       outline: none;
       border-color: var(--amber);
+      background: var(--ink3)
     }
 
-    .search-wrap::before {
+    .sbox::before {
       content: '⌕';
       position: absolute;
-      left: 8px;
+      left: 9px;
       top: 50%;
       transform: translateY(-50%);
-      color: var(--text-dim);
-      font-size: 13px;
-      pointer-events: none;
+      color: var(--muted);
+      font-size: 14px;
+      pointer-events: none
     }
 
     .chip {
       font-size: 10px;
-      padding: 3px 9px;
-      border-radius: 2px;
-      border: 1px solid var(--border2);
-      background: var(--bg3);
-      color: var(--text-dim);
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1px solid var(--line2);
+      background: var(--ink2);
+      color: var(--dim);
       cursor: pointer;
-      transition: all 0.15s;
-      font-family: var(--font-mono);
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
+      transition: all .15s;
+      white-space: nowrap
     }
 
     .chip:hover {
-      border-color: var(--text-dim);
-      color: var(--text);
+      border-color: var(--muted);
+      color: var(--text)
     }
 
-    .chip.active {
-      color: #000;
-      font-weight: 700;
+    .chip.on {
+      font-weight: 600
     }
 
-    .chip[data-cls="coinjoin"].active {
-      background: var(--red);
-      border-color: var(--red);
-      color: #fff;
+    .chip[data-c="coinjoin"].on {
+      background: rgba(240, 79, 90, .12);
+      border-color: rgba(240, 79, 90, .4);
+      color: var(--red)
     }
 
-    .chip[data-cls="consolidation"].active {
-      background: var(--purple);
-      border-color: var(--purple);
-      color: #fff;
+    .chip[data-c="consolidation"].on {
+      background: rgba(168, 85, 247, .12);
+      border-color: rgba(168, 85, 247, .4);
+      color: var(--purple)
     }
 
-    .chip[data-cls="self_transfer"].active {
-      background: var(--green);
-      border-color: var(--green);
-      color: #fff;
+    .chip[data-c="self_transfer"].on {
+      background: rgba(34, 197, 94, .12);
+      border-color: rgba(34, 197, 94, .4);
+      color: var(--green)
     }
 
-    .chip[data-cls="batch_payment"].active {
-      background: var(--yellow);
-      border-color: var(--yellow);
-      color: #000;
+    .chip[data-c="batch_payment"].on {
+      background: rgba(234, 179, 8, .12);
+      border-color: rgba(234, 179, 8, .4);
+      color: var(--yellow)
     }
 
-    .chip[data-cls="simple_payment"].active {
-      background: var(--cyan);
-      border-color: var(--cyan);
-      color: #000;
+    .chip[data-c="simple_payment"].on {
+      background: rgba(20, 184, 166, .12);
+      border-color: rgba(20, 184, 166, .4);
+      color: var(--teal)
     }
 
-    .chip[data-cls="unknown"].active {
-      background: var(--grey);
-      border-color: var(--grey);
-      color: #fff;
+    .chip[data-c="unknown"].on {
+      background: rgba(100, 116, 139, .12);
+      border-color: rgba(100, 116, 139, .4);
+      color: var(--grey)
     }
 
-    .filter-count {
-      font-size: 10px;
-      color: var(--text-dim);
+    .rcnt {
       margin-left: auto;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--muted)
     }
 
     /* Table area */
-    #table-wrap {
+    #tarea {
       flex: 1;
       overflow-y: auto;
+      padding: 0 18px
     }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
+    .estate {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      gap: 10px;
+      color: var(--muted)
     }
 
-    thead tr {
-      background: var(--bg2);
+    .estate-ico {
+      font-size: 40px;
+      opacity: .15
+    }
+
+    .estate-ttl {
+      font-size: 14px;
+      color: var(--soft)
+    }
+
+    .estate-desc {
+      font-size: 12px;
+      max-width: 260px;
+      text-align: center;
+      line-height: 1.6
+    }
+
+    .tx-hdr {
+      display: grid;
+      grid-template-columns: 3fr 1.7fr 2fr 72px 106px;
+      padding: 6px 13px;
+      gap: 8px;
       position: sticky;
       top: 0;
       z-index: 5;
-      border-bottom: 1px solid var(--border2);
+      background: var(--ink)
     }
 
-    th {
-      padding: 7px 10px;
-      text-align: left;
+    .th {
       font-size: 9px;
       text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: var(--text-dim);
-      white-space: nowrap;
-      font-weight: 600;
+      letter-spacing: .1em;
+      color: var(--muted);
+      font-weight: 600
     }
 
-    tbody tr {
-      border-bottom: 1px solid var(--border);
+    .th-help {
+      cursor: help;
+      border-bottom: 1px dashed var(--muted)
+    }
+
+    .tx-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding-bottom: 12px
+    }
+
+    .tx-row {
+      background: var(--ink2);
+      border: 1px solid var(--line);
+      border-radius: var(--r);
       cursor: pointer;
-      transition: background 0.12s;
+      transition: all .15s var(--ease);
+      overflow: hidden
     }
 
-    tbody tr:hover {
-      background: var(--bg2);
+    .tx-row:hover {
+      border-color: var(--line2);
+      background: var(--ink3)
     }
 
-    tbody tr.expanded {
-      background: var(--bg2);
-      border-left: 2px solid var(--amber);
-    }
-
-    td {
-      padding: 6px 10px;
-      font-size: 11px;
-      vertical-align: top;
-    }
-
-    .txid-cell {
-      font-family: var(--font-mono);
-      color: var(--text-dim);
-      white-space: nowrap;
-    }
-
-    .txid-cell .txid-short {
-      color: var(--text);
-      border-bottom: 1px dashed var(--border2);
-    }
-
-    .txid-cell .txid-short:hover {
-      color: var(--amber);
+    .tx-row.exp {
       border-color: var(--amber);
+      background: var(--ink3)
     }
 
-    .copy-btn {
+    .tx-main {
+      display: grid;
+      grid-template-columns: 3fr 1.7fr 2fr 72px 106px;
+      align-items: center;
+      padding: 9px 13px;
+      gap: 8px
+    }
+
+    .c-txid {
+      display: flex;
+      align-items: center;
+      gap: 6px
+    }
+
+    .txid-t {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text)
+    }
+
+    .txid-t .dp {
+      color: var(--muted)
+    }
+
+    .cpbtn {
       background: none;
       border: none;
-      color: var(--text-dim);
       cursor: pointer;
-      font-size: 10px;
-      padding: 0 3px;
-      font-family: var(--font-mono);
-      transition: color 0.15s;
+      color: var(--muted);
+      font-size: 11px;
+      padding: 2px 4px;
+      border-radius: 3px;
+      opacity: 0;
+      transition: opacity .15s
     }
 
-    .copy-btn:hover {
+    .tx-row:hover .cpbtn {
+      opacity: 1
+    }
+
+    .cpbtn:hover {
       color: var(--amber);
+      background: var(--abg)
     }
 
-    /* Classification badge */
-    .badge {
+    .cls-b {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 9px;
+      border-radius: 20px;
+      letter-spacing: .02em;
+      white-space: nowrap
+    }
+
+    .cls-b .dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      flex-shrink: 0
+    }
+
+    .cb-coinjoin {
+      background: rgba(240, 79, 90, .12);
+      border: 1px solid rgba(240, 79, 90, .26);
+      color: var(--red)
+    }
+
+    .cb-consolidation {
+      background: rgba(168, 85, 247, .12);
+      border: 1px solid rgba(168, 85, 247, .26);
+      color: var(--purple)
+    }
+
+    .cb-self_transfer {
+      background: rgba(34, 197, 94, .12);
+      border: 1px solid rgba(34, 197, 94, .26);
+      color: var(--green)
+    }
+
+    .cb-batch_payment {
+      background: rgba(234, 179, 8, .12);
+      border: 1px solid rgba(234, 179, 8, .26);
+      color: var(--yellow)
+    }
+
+    .cb-simple_payment {
+      background: rgba(20, 184, 166, .12);
+      border: 1px solid rgba(20, 184, 166, .26);
+      color: var(--teal)
+    }
+
+    .cb-unknown {
+      background: rgba(100, 116, 139, .12);
+      border: 1px solid rgba(100, 116, 139, .26);
+      color: var(--grey)
+    }
+
+    .hpills {
+      display: flex;
+      gap: 3px;
+      flex-wrap: wrap
+    }
+
+    .hpill {
       font-size: 9px;
+      padding: 2px 5px;
+      border-radius: 3px;
+      font-family: var(--mono);
+      letter-spacing: .02em;
+      cursor: help;
+      transition: all .15s
+    }
+
+    .hpill.on {
+      background: var(--abg);
+      border: 1px solid rgba(247, 147, 26, .26);
+      color: var(--amber)
+    }
+
+    .hpill.off {
+      background: var(--ink4);
+      border: 1px solid var(--line);
+      color: var(--muted)
+    }
+
+    .c-cioh {
+      text-align: center
+    }
+
+    .cioh-y {
+      font-family: var(--mono);
+      font-size: 9px;
+      font-weight: 700;
+      background: var(--abg);
+      border: 1px solid rgba(247, 147, 26, .26);
+      color: var(--amber);
+      padding: 2px 7px;
+      border-radius: 3px
+    }
+
+    .cioh-n {
+      font-size: 10px;
+      color: var(--muted);
+      padding: 2px 7px
+    }
+
+    .c-chg {
+      font-size: 10px;
+      color: var(--dim)
+    }
+
+    .chg-y {
+      color: var(--text)
+    }
+
+    .chg-idx {
+      font-family: var(--mono);
+      color: var(--amber);
+      font-weight: 700
+    }
+
+    .chg-cf {
+      display: inline-block;
+      font-size: 8px;
+      padding: 1px 5px;
+      border-radius: 2px;
+      margin-left: 3px;
+      font-family: var(--mono)
+    }
+
+    .cf-high {
+      background: rgba(34, 197, 94, .1);
+      color: var(--green)
+    }
+
+    .cf-medium {
+      background: rgba(234, 179, 8, .1);
+      color: var(--yellow)
+    }
+
+    .cf-low {
+      background: rgba(100, 116, 139, .1);
+      color: var(--grey)
+    }
+
+    /* Expanded detail */
+    .tx-det {
+      border-top: 1px solid var(--line);
+      padding: 15px 16px;
+      animation: sd .18s var(--ease)
+    }
+
+    @keyframes sd {
+      from {
+        opacity: 0;
+        transform: translateY(-4px)
+      }
+
+      to {
+        opacity: 1;
+        transform: none
+      }
+    }
+
+    .det-txid {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--soft);
+      margin-bottom: 12px;
+      word-break: break-all;
+      flex-wrap: wrap
+    }
+
+    .det-txid strong {
+      color: var(--amber)
+    }
+
+    .hd-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px
+    }
+
+    .hd-card {
+      background: var(--ink);
+      border: 1px solid var(--line);
+      border-radius: var(--rs);
+      padding: 10px 12px;
+      transition: border-color .15s
+    }
+
+    .hd-card.det {
+      border-color: rgba(247, 147, 26, .2);
+      background: rgba(247, 147, 26, .015)
+    }
+
+    .hd-card.det:hover {
+      border-color: rgba(247, 147, 26, .38)
+    }
+
+    .hd-card:not(.det):hover {
+      border-color: var(--line2)
+    }
+
+    .hd-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 4px
+    }
+
+    .hd-name {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text)
+    }
+
+    .hd-st {
+      font-size: 8px;
+      font-family: var(--mono);
+      font-weight: 700;
       padding: 2px 6px;
       border-radius: 2px;
       text-transform: uppercase;
-      letter-spacing: 0.06em;
-      font-weight: 700;
-      white-space: nowrap;
-      font-family: var(--font-mono);
+      letter-spacing: .07em
     }
 
-    .badge-coinjoin {
-      background: rgba(229, 57, 53, 0.18);
-      border: 1px solid var(--red);
-      color: var(--red);
+    .hd-st.y {
+      background: rgba(247, 147, 26, .13);
+      color: var(--amber)
     }
 
-    .badge-consolidation {
-      background: rgba(156, 39, 176, 0.18);
-      border: 1px solid var(--purple);
-      color: var(--purple);
+    .hd-st.n {
+      background: var(--ink4);
+      color: var(--muted)
     }
 
-    .badge-self_transfer {
-      background: rgba(67, 160, 71, 0.18);
-      border: 1px solid var(--green);
-      color: var(--green);
-    }
-
-    .badge-batch_payment {
-      background: rgba(253, 216, 53, 0.15);
-      border: 1px solid var(--yellow);
-      color: var(--yellow);
-    }
-
-    .badge-simple_payment {
-      background: rgba(0, 188, 212, 0.15);
-      border: 1px solid var(--cyan);
-      color: var(--cyan);
-    }
-
-    .badge-unknown {
-      background: rgba(84, 110, 122, 0.18);
-      border: 1px solid var(--grey);
-      color: var(--grey);
-    }
-
-    /* Heuristic dots */
-    .h-dots {
-      display: flex;
-      gap: 3px;
-      flex-wrap: wrap;
-    }
-
-    .h-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      cursor: default;
-      position: relative;
-    }
-
-    .h-dot.on {
-      background: var(--amber);
-      box-shadow: 0 0 4px var(--amber-dim);
-    }
-
-    .h-dot.off {
-      background: var(--border2);
-    }
-
-    .h-dot:hover::after {
-      content: attr(data-tip);
-      position: absolute;
-      bottom: calc(100% + 5px);
-      left: 50%;
-      transform: translateX(-50%);
-      background: var(--bg2);
-      border: 1px solid var(--border2);
-      color: var(--text);
+    .hd-desc {
       font-size: 10px;
+      color: var(--muted);
+      line-height: 1.5;
+      margin-bottom: 3px
+    }
+
+    .hd-xtra {
+      font-family: var(--mono);
+      font-size: 9px;
+      color: var(--soft);
+      background: var(--ink3);
+      border-radius: 3px;
       padding: 3px 7px;
-      border-radius: var(--radius);
-      white-space: nowrap;
-      pointer-events: none;
-      z-index: 100;
-    }
-
-    .cioh-flag {
-      font-size: 9px;
-      font-weight: 700;
-      font-family: var(--font-mono);
-      padding: 1px 5px;
-      border-radius: 2px;
-      background: rgba(247, 147, 26, 0.15);
-      border: 1px solid var(--amber-dim);
-      color: var(--amber);
-    }
-
-    .cioh-flag.off {
-      background: var(--bg3);
-      border-color: var(--border);
-      color: var(--text-dim);
-      opacity: 0.4;
-    }
-
-    .change-cell {
-      font-size: 10px;
-      color: var(--text-dim);
-    }
-
-    .change-cell span {
-      color: var(--amber);
-      font-weight: 700;
-    }
-
-    /* Expanded row */
-    .expanded-row {
-      background: var(--bg2);
-    }
-
-    .expanded-row td {
-      padding: 0;
-    }
-
-    .expanded-inner {
-      padding: 12px 16px;
-      border-left: 2px solid var(--amber);
-      border-bottom: 2px solid var(--border2);
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 16px;
-    }
-
-    .expanded-txid {
-      font-size: 11px;
-      color: var(--amber);
-      word-break: break-all;
-      margin-bottom: 10px;
-    }
-
-    .h-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 6px;
-    }
-
-    .h-item {
-      background: var(--bg3);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 7px 9px;
-      font-size: 10px;
-    }
-
-    .h-item.detected {
-      border-color: var(--amber-dim);
-    }
-
-    .h-item .h-name {
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      font-size: 9px;
-      color: var(--text-dim);
-    }
-
-    .h-item .h-status {
-      font-weight: 700;
-      color: var(--text-dim);
-      margin-top: 2px;
-    }
-
-    .h-item.detected .h-status {
-      color: var(--amber);
-    }
-
-    .h-item .h-detail {
-      color: var(--text-dim);
-      font-size: 10px;
-      margin-top: 3px;
+      margin-top: 3px
     }
 
     /* Pagination */
-    #pagination {
+    #pgbar {
       flex-shrink: 0;
       display: flex;
       align-items: center;
-      gap: 6px;
-      padding: 7px 16px;
-      background: var(--bg2);
-      border-top: 1px solid var(--border);
+      gap: 4px;
+      padding: 9px 18px;
+      background: var(--ink2);
+      border-top: 1px solid var(--line)
     }
 
-    .pg-btn {
-      background: var(--bg3);
-      border: 1px solid var(--border2);
-      color: var(--text-dim);
-      font-family: var(--font-mono);
+    .pg-b {
+      background: var(--ink3);
+      border: 1px solid var(--line2);
+      color: var(--soft);
+      font-family: var(--mono);
       font-size: 11px;
-      padding: 4px 9px;
-      border-radius: var(--radius);
+      padding: 4px 8px;
+      border-radius: var(--rs);
       cursor: pointer;
-      transition: all 0.15s;
-      line-height: 1;
+      transition: all .15s;
       min-width: 28px;
       text-align: center;
+      line-height: 1
     }
 
-    .pg-btn:hover:not(:disabled) {
+    .pg-b:hover:not(:disabled) {
       border-color: var(--amber);
-      color: var(--amber);
+      color: var(--amber)
     }
 
-    .pg-btn:disabled {
-      opacity: 0.3;
-      cursor: default;
+    .pg-b:disabled {
+      opacity: .22;
+      cursor: default
     }
 
-    .pg-btn.active {
+    .pg-b.cur {
       background: var(--amber);
       border-color: var(--amber);
       color: #000;
-      font-weight: 700;
+      font-weight: 700
     }
 
-    .pg-sep {
-      color: var(--text-dim);
+    .pg-dots {
+      color: var(--muted);
       font-size: 11px;
-      padding: 0 2px;
+      padding: 0 2px
     }
 
-    .pg-info {
-      font-size: 10px;
-      color: var(--text-dim);
+    .pg-inf {
       margin-left: auto;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--muted)
     }
 
-    #pg-size-select {
+    #pg-sz {
       appearance: none;
-      background: var(--bg3);
-      border: 1px solid var(--border2);
-      color: var(--text-dim);
-      font-family: var(--font-mono);
+      background: var(--ink3);
+      border: 1px solid var(--line2);
+      color: var(--soft);
+      font-family: var(--mono);
       font-size: 10px;
-      padding: 3px 20px 3px 7px;
-      border-radius: var(--radius);
+      padding: 4px 18px 4px 7px;
+      border-radius: var(--rs);
       cursor: pointer;
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23f7931a'/%3E%3C/svg%3E");
       background-repeat: no-repeat;
-      background-position: right 6px center;
+      background-position: right 4px center
     }
 
-    #pg-size-select:focus {
+    #pg-sz:focus {
       outline: none;
-      border-color: var(--amber);
+      border-color: var(--amber)
     }
 
-    /* ─── Right Sidebar ──────────────────────────────── */
-    #sidebar-right {
-      background: var(--bg2);
-      border-left: 1px solid var(--border);
+    /* ── RIGHT SIDEBAR ── */
+    #rsb {
+      background: var(--ink2);
+      border-left: 1px solid var(--line);
       display: flex;
       flex-direction: column;
+      overflow: hidden
+    }
+
+    .rsb-sec {
+      border-bottom: 1px solid var(--line);
+      padding: 14px 15px;
+      flex-shrink: 0
+    }
+
+    .rsb-sec.grow {
+      flex: 1;
       overflow: hidden;
-    }
-
-    /* Donut chart */
-    #chart-section {
-      padding: 12px;
-      border-bottom: 1px solid var(--border);
-      flex-shrink: 0;
-    }
-
-    #donut-container {
-      width: 100%;
-      height: 160px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      position: relative;
-    }
-
-    #donut-container svg {
-      overflow: visible;
-    }
-
-    #chart-legend {
-      margin-top: 8px;
       display: flex;
       flex-direction: column;
-      gap: 3px;
+      border-bottom: none;
+      min-height: 0
     }
 
-    .legend-row {
+    .rsb-sec.grow .sec-body {
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+      padding: 2px 0
+    }
+
+    /* Donut */
+    .donut-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 10px
+    }
+
+    #dsvg-c {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: relative
+    }
+
+    #dist-leg {
+      display: flex;
+      flex-direction: column;
+      gap: 4px
+    }
+
+    .dr {
       display: flex;
       align-items: center;
       gap: 6px;
-      font-size: 10px;
-      color: var(--text-dim);
+      font-size: 10px
     }
 
-    .legend-dot {
-      width: 8px;
-      height: 8px;
+    .dr-sw {
+      width: 7px;
+      height: 7px;
       border-radius: 2px;
-      flex-shrink: 0;
+      flex-shrink: 0
     }
 
-    .legend-val {
-      margin-left: auto;
-      color: var(--text);
-    }
-
-    #chart-no-d3 {
-      font-size: 11px;
-      color: var(--red);
-      padding: 8px;
-      text-align: center;
-      display: none;
-    }
-
-    /* Heuristic hits */
-    #heuristic-hits {
-      overflow-y: auto;
+    .dr-name {
       flex: 1;
-      padding: 12px;
+      color: var(--soft)
     }
 
-    .h-hit-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 5px 0;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .h-hit-name {
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.07em;
-      color: var(--text-dim);
-      flex: 1;
-    }
-
-    .h-hit-bar-wrap {
-      flex: 0 0 60px;
-      height: 4px;
-      background: var(--bg3);
+    .dr-bw {
+      flex: 0 0 50px;
+      height: 3px;
+      background: var(--line);
       border-radius: 2px;
-      overflow: hidden;
+      overflow: hidden
     }
 
-    .h-hit-bar {
+    .dr-bf {
       height: 100%;
-      background: var(--amber);
       border-radius: 2px;
-      transition: width 0.4s ease;
+      transition: width .5s
     }
 
-    .h-hit-count {
-      font-size: 10px;
-      font-weight: 700;
-      color: var(--amber);
-      min-width: 36px;
-      text-align: right;
+    .dr-pct {
+      font-family: var(--mono);
+      font-size: 9px;
+      color: var(--dim);
+      min-width: 26px;
+      text-align: right
     }
 
-    /* Empty/loading states */
-    .state-msg {
-      padding: 40px 20px;
-      text-align: center;
-      color: var(--text-dim);
+    .dr-cnt {
+      font-family: var(--mono);
+      font-size: 9px;
+      color: var(--muted);
+      min-width: 38px;
+      text-align: right
+    }
+
+    /* Block cards */
+    .bc {
+      padding: 10px 15px;
+      border-bottom: 1px solid var(--line);
+      cursor: pointer;
+      transition: background .15s;
+      position: relative;
+      overflow: hidden
+    }
+
+    .bc::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: transparent;
+      transition: background .2s
+    }
+
+    .bc:hover {
+      background: var(--ink3)
+    }
+
+    .bc.on {
+      background: var(--ink3)
+    }
+
+    .bc.on::before {
+      background: var(--amber)
+    }
+
+    .bc-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 3px
+    }
+
+    .bc-h {
+      font-family: var(--mono);
       font-size: 12px;
+      font-weight: 700;
+      color: var(--bright)
     }
 
-    .state-msg .icon {
-      font-size: 28px;
-      display: block;
-      margin-bottom: 10px;
-      opacity: 0.4;
+    .bc-flag {
+      font-size: 9px;
+      font-family: var(--mono);
+      color: var(--amber);
+      background: var(--abg);
+      border: 1px solid rgba(247, 147, 26, .2);
+      padding: 1px 6px;
+      border-radius: 3px
+    }
+
+    .bc-hash {
+      font-family: var(--mono);
+      font-size: 9px;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      width: 100%;
+      margin-bottom: 5px
+    }
+
+    .bc-stats {
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap
+    }
+
+    .bcs {
+      font-size: 9px;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: var(--mono)
+    }
+
+    .bcs-d {
+      background: var(--ink4);
+      border: 1px solid var(--line2);
+      color: var(--soft)
+    }
+
+    .bc-heurbar {
+      margin-top: 6px;
+      height: 3px;
+      background: var(--line);
+      border-radius: 2px;
+      overflow: hidden
+    }
+
+    .bc-hf {
+      height: 100%;
+      background: linear-gradient(90deg, var(--amber), var(--amber3));
+      border-radius: 2px;
+      transition: width .5s
+    }
+
+    /* Tooltip */
+    .tip {
+      position: fixed;
+      z-index: 9999;
+      background: var(--ink3);
+      border: 1px solid var(--line2);
+      color: var(--text);
+      font-size: 11px;
+      line-height: 1.5;
+      padding: 8px 12px;
+      border-radius: var(--rs);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .15s;
+      max-width: 230px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, .5)
+    }
+
+    .tip.on {
+      opacity: 1
+    }
+
+    .tip-ttl {
+      font-weight: 700;
+      color: var(--bright);
+      margin-bottom: 2px;
+      font-size: 12px
     }
 
     /* Toast */
@@ -1078,785 +1432,640 @@
       position: fixed;
       bottom: 20px;
       right: 20px;
-      background: var(--bg2);
-      border: 1px solid var(--amber);
-      color: var(--amber);
+      z-index: 10000;
+      background: var(--ink3);
+      border: 1px solid var(--teal);
+      color: var(--teal);
+      font-family: var(--mono);
       font-size: 11px;
       padding: 7px 14px;
-      border-radius: var(--radius);
-      font-family: var(--font-mono);
+      border-radius: var(--rs);
       opacity: 0;
       pointer-events: none;
-      transition: opacity 0.2s;
-      z-index: 1000;
+      transition: opacity .2s, transform .2s;
+      transform: translateY(5px)
     }
 
-    #toast.show {
+    #toast.on {
       opacity: 1;
+      transform: none
     }
 
-    /* Loading spinner */
-    .spinner {
+    .spin {
       display: inline-block;
-      width: 14px;
-      height: 14px;
-      border: 2px solid var(--border2);
+      width: 12px;
+      height: 12px;
+      border: 2px solid var(--line2);
       border-top-color: var(--amber);
       border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-      vertical-align: middle;
-      margin-right: 6px;
+      animation: rot .7s linear infinite;
+      vertical-align: middle
     }
 
-    @keyframes spin {
+    @keyframes rot {
       to {
-        transform: rotate(360deg);
+        transform: rotate(360deg)
+      }
+    }
+
+    .fi {
+      animation: fi .26s var(--ease)
+    }
+
+    @keyframes fi {
+      from {
+        opacity: 0;
+        transform: translateY(6px)
+      }
+
+      to {
+        opacity: 1;
+        transform: none
       }
     }
   </style>
 </head>
 
 <body>
-  <div id="app">
+  <div id="shell">
 
-    <!-- Header -->
-    <header id="header">
-      <div class="logo">SHERLOCK<span>Bitcoin Chain Analysis Engine</span></div>
-      <div class="header-sep"></div>
-      <div class="label">Block File</div>
-      <div class="select-wrap">
-        <select id="block-select">
-          <option value="">— Select file —</option>
+    <!-- TOPBAR -->
+    <div id="topbar">
+      <div class="wordmark">
+        <span class="hex">&#x2B21;</span>
+        <span>SHERLOCK</span>
+        <small>Bitcoin Chain Analysis</small>
+      </div>
+      <div class="divv"></div>
+      <span class="fl">Block File</span>
+      <div class="sel-wrap">
+        <select id="bsel">
+          <option value="">— select a block file —</option>
         </select>
       </div>
-      <div class="header-status ml-auto">
-        <div class="status-dot" id="status-dot"></div>
-        <span id="status-text">IDLE</span>
+      <div class="sbadge" id="sbadge">
+        <div class="pls"></div><span id="stxt">idle</span>
       </div>
-    </header>
+    </div>
 
-    <!-- Main 3-column layout -->
-    <div id="main">
+    <div id="body">
 
-      <!-- Left: Block list + summary stats -->
-      <aside id="sidebar-left">
-        <div class="sidebar-section">
-          <div class="sidebar-title">File Stats</div>
-          <div class="stat-grid" id="stat-grid">
-            <div class="stat-card">
-              <div class="s-label">Total TXs</div>
-              <div class="s-val" id="s-total">—</div>
+      <!-- LEFT SIDEBAR -->
+      <aside id="lsb">
+        <div class="sb-sec">
+          <div class="sec-ttl">File Summary</div>
+          <div class="kpi-grid">
+            <div class="kpi">
+              <div class="kpi-lbl">Transactions</div>
+              <div class="kpi-val am" id="kv-total">—</div>
+              <div class="kpi-sub" id="kv-blocks">— blocks</div>
             </div>
-            <div class="stat-card">
-              <div class="s-label">Flagged</div>
-              <div class="s-val" id="s-flagged">—</div>
+            <div class="kpi">
+              <div class="kpi-lbl">Flagged</div>
+              <div class="kpi-val" id="kv-flag">—</div>
+              <div class="kpi-sub" id="kv-fpct">—</div>
             </div>
-            <div class="stat-card">
-              <div class="s-label">Median Fee</div>
-              <div class="s-val small" id="s-median">—</div>
+            <div class="kpi">
+              <div class="kpi-lbl">Heuristics</div>
+              <div class="kpi-val" id="kv-h">—</div>
+              <div class="kpi-sub">applied</div>
             </div>
-            <div class="stat-card">
-              <div class="s-label">Heuristics</div>
-              <div class="s-val" id="s-hcount">—</div>
+            <div class="kpi">
+              <div class="kpi-lbl">CoinJoins</div>
+              <div class="kpi-val" id="kv-cj">—</div>
+              <div class="kpi-sub">detected</div>
+            </div>
+          </div>
+          <!-- Fee rate mini-visualization -->
+          <div class="fee-strip" id="fee-strip">
+            <div class="fee-row">
+              <span class="fee-lbl">min</span>
+              <div class="fee-track">
+                <div class="fee-fill" id="ff-min" style="width:2%;background:#64748b"></div>
+              </div>
+              <span class="fee-val" id="fv-min">—</span>
+            </div>
+            <div class="fee-row">
+              <span class="fee-lbl">med</span>
+              <div class="fee-track">
+                <div class="fee-fill" id="ff-med" style="width:40%;background:var(--amber)"></div>
+              </div>
+              <span class="fee-val" id="fv-med">—</span>
+            </div>
+            <div class="fee-row">
+              <span class="fee-lbl">mean</span>
+              <div class="fee-track">
+                <div class="fee-fill" id="ff-mean" style="width:50%;background:var(--amber3)"></div>
+              </div>
+              <span class="fee-val" id="fv-mean">—</span>
+            </div>
+            <div class="fee-row">
+              <span class="fee-lbl">max</span>
+              <div class="fee-track">
+                <div class="fee-fill" id="ff-max" style="width:100%;background:var(--red)"></div>
+              </div>
+              <span class="fee-val" id="fv-max">—</span>
             </div>
           </div>
         </div>
-        <div class="sidebar-section" style="flex-shrink:0;">
-          <div class="sidebar-title">Blocks</div>
-        </div>
-        <div id="blocks-list">
-          <div class="state-msg"><span class="icon">◈</span>Load a file to begin</div>
+
+        <div class="sb-sec grow">
+          <div class="sec-ttl">Heuristic Hits</div>
+          <div class="sec-body" id="hit-sec">
+            <div style="color:var(--muted);font-size:11px;text-align:center;padding:20px">Load a file to see analysis
+            </div>
+          </div>
         </div>
       </aside>
 
-      <!-- Center: Filters + Table -->
-      <div id="center">
-        <!-- Summary metrics -->
-        <div id="stats-bar">
-          <div class="metric-card">
-            <div class="m-label">Transactions</div>
-            <div class="m-val" id="m-total">—</div>
-            <div class="m-sub" id="m-total-sub"></div>
+      <!-- MAIN CONTENT -->
+      <main id="main">
+        <div id="insights">
+          <div class="ins">
+            <div class="ins-ico">&#128269;</div>
+            <div class="ins-lbl">Total Analyzed</div>
+            <div class="ins-val" id="iv-total">—</div>
+            <div class="ins-sub" id="iv-tsub">select a file above</div>
           </div>
-          <div class="metric-card">
-            <div class="m-label">Flagged</div>
-            <div class="m-val" id="m-flagged">—</div>
-            <div class="m-sub" id="m-flagged-pct"></div>
+          <div class="ins">
+            <div class="ins-ico">&#9873;</div>
+            <div class="ins-lbl">Flagged Txs</div>
+            <div class="ins-val" id="iv-flag">—</div>
+            <div class="ins-sub" id="iv-fsub">with &ge;1 heuristic hit</div>
           </div>
-          <div class="metric-card">
-            <div class="m-label">Avg Fee Rate</div>
-            <div class="m-val" id="m-mean">—<span class="unit">sat/vB</span></div>
-            <div class="m-sub" id="m-fee-range"></div>
+          <div class="ins">
+            <div class="ins-ico">&#9889;</div>
+            <div class="ins-lbl">Median Fee Rate</div>
+            <div class="ins-val" id="iv-fee">—</div>
+            <div class="ins-sub" id="iv-frsub">sat / vByte</div>
           </div>
-          <div class="metric-card">
-            <div class="m-label">Script Types</div>
-            <div class="m-val" id="m-scripts">—</div>
-            <div class="m-sub" id="m-dominant"></div>
-          </div>
-        </div>
-
-        <!-- Fee rate bar -->
-        <div id="fee-row">
-          <div class="fee-label">Fee Rate Distribution</div>
-          <div class="fee-stats">
-            <div class="fee-stat">Min <span id="fr-min">—</span></div>
-            <div class="fee-stat">Median <span id="fr-median">—</span></div>
-            <div class="fee-stat">Mean <span id="fr-mean">—</span></div>
-            <div class="fee-stat">Max <span id="fr-max">—</span></div>
-          </div>
-          <div class="fee-bar-wrap" id="fee-bar-wrap">
-            <div class="fee-bar-fill" id="fee-bar-fill" style="width:0%"></div>
-            <div class="fee-bar-median" id="fee-bar-median" style="left:0%"></div>
+          <div class="ins">
+            <div class="ins-ico">&#9711;</div>
+            <div class="ins-lbl">CoinJoins</div>
+            <div class="ins-val" id="iv-cj">—</div>
+            <div class="ins-sub">privacy mixing detected</div>
           </div>
         </div>
 
-        <!-- Classification filters -->
-        <div id="filter-row">
-          <div class="search-wrap">
-            <input type="text" id="txid-search" placeholder="Search txid…" autocomplete="off" spellcheck="false">
+        <div id="cls-strip">
+          <div class="cls-hd">
+            <span class="cls-hd-lbl">Transaction Classification</span>
+            <span class="cls-hd-sub" id="cls-sub">How every transaction was categorized</span>
           </div>
-          <div class="chip active" data-cls="coinjoin">CoinJoin</div>
-          <div class="chip active" data-cls="consolidation">Consolidation</div>
-          <div class="chip active" data-cls="self_transfer">Self Transfer</div>
-          <div class="chip active" data-cls="batch_payment">Batch</div>
-          <div class="chip active" data-cls="simple_payment">Simple</div>
-          <div class="chip active" data-cls="unknown">Unknown</div>
-          <div class="filter-count" id="filter-count"></div>
+          <div class="cls-bar" id="cls-bar"></div>
+          <div class="cls-leg" id="cls-leg"></div>
         </div>
 
-        <!-- Transaction table -->
-        <div id="table-wrap">
-          <div class="state-msg" id="table-empty-state">
-            <span class="icon">◈</span>Select a block file to analyze transactions
-          </div>
-          <table id="tx-table" style="display:none">
-            <thead>
-              <tr>
-                <th>TXID</th>
-                <th>Classification</th>
-                <th>Heuristics</th>
-                <th>CIOH</th>
-                <th>Change</th>
-              </tr>
-            </thead>
-            <tbody id="tx-tbody"></tbody>
-          </table>
+        <div id="fbar">
+          <div class="sbox"><input type="text" id="txsrch" placeholder="Search by txid…" autocomplete="off"
+              spellcheck="false"></div>
+          <div class="chip on" data-c="coinjoin">CoinJoin</div>
+          <div class="chip on" data-c="consolidation">Consolidation</div>
+          <div class="chip on" data-c="self_transfer">Self Transfer</div>
+          <div class="chip on" data-c="batch_payment">Batch</div>
+          <div class="chip on" data-c="simple_payment">Simple</div>
+          <div class="chip on" data-c="unknown">Unknown</div>
+          <div class="rcnt" id="rcnt"></div>
         </div>
-        <!-- Pagination bar -->
-        <div id="pagination" style="display:none">
-          <button class="pg-btn" id="pg-first" title="First">&#171;</button>
-          <button class="pg-btn" id="pg-prev" title="Prev">&#8249;</button>
-          <div id="pg-pages" style="display:flex;gap:4px;"></div>
-          <button class="pg-btn" id="pg-next" title="Next">&#8250;</button>
-          <button class="pg-btn" id="pg-last" title="Last">&#187;</button>
-          <div class="pg-info" id="pg-info"></div>
-          <select id="pg-size-select" title="Rows per page">
+
+        <div id="tarea">
+          <div id="estat" class="estate">
+            <div class="estate-ico">&#x2B21;</div>
+            <div class="estate-ttl">No file loaded</div>
+            <div class="estate-desc">Select a block file from the dropdown above to start exploring Bitcoin transaction
+              patterns.</div>
+          </div>
+          <div id="twrap" style="display:none">
+            <div class="tx-hdr">
+              <div class="th"><span class="th-help" id="th-txid">Transaction ID</span></div>
+              <div class="th"><span class="th-help" id="th-cls">Classification</span></div>
+              <div class="th"><span class="th-help" id="th-h">Heuristics Triggered</span></div>
+              <div class="th" style="text-align:center"><span class="th-help" id="th-cioh">CIOH</span></div>
+              <div class="th"><span class="th-help" id="th-chg">Change Output</span></div>
+            </div>
+            <div class="tx-list" id="txlist"></div>
+          </div>
+        </div>
+
+        <div id="pgbar" style="display:none">
+          <button class="pg-b" id="pg1">&#171;</button>
+          <button class="pg-b" id="pgp">&#8249;</button>
+          <div id="pgnums" style="display:flex;gap:3px"></div>
+          <button class="pg-b" id="pgn">&#8250;</button>
+          <button class="pg-b" id="pgl">&#187;</button>
+          <div class="pg-inf" id="pginf"></div>
+          <select id="pg-sz">
             <option value="50">50 / page</option>
             <option value="100" selected>100 / page</option>
             <option value="200">200 / page</option>
           </select>
         </div>
-      </div>
+      </main>
 
-      <!-- Right: Chart + Heuristic hits -->
-      <aside id="sidebar-right">
-        <div id="chart-section">
-          <div class="sidebar-title">Script Types</div>
-          <div id="donut-container">
-            <svg id="donut-svg" width="140" height="140"></svg>
+      <!-- RIGHT SIDEBAR -->
+      <aside id="rsb">
+        <div class="rsb-sec">
+          <div class="sec-ttl">Script Type Distribution</div>
+          <div class="donut-wrap">
+            <div id="dsvg-c">
+              <svg id="dsvg" width="110" height="110" viewBox="0 0 110 110"></svg>
+            </div>
+            <div id="dist-leg"></div>
           </div>
-          <div id="chart-no-d3">D3.js not available</div>
-          <div id="chart-legend"></div>
         </div>
-        <div class="sidebar-section" style="flex-shrink:0;">
-          <div class="sidebar-title">Heuristic Hits</div>
-        </div>
-        <div id="heuristic-hits">
-          <div class="state-msg"><span class="icon">◈</span>No data</div>
+
+        <div class="rsb-sec grow">
+          <div class="sec-ttl">Blocks in File</div>
+          <div class="sec-body" id="block-list">
+            <div style="color:var(--muted);font-size:11px;text-align:center;padding:20px">—</div>
+          </div>
         </div>
       </aside>
 
-    </div><!-- /#main -->
+    </div><!-- #body -->
+  </div><!-- #shell -->
 
-  </div><!-- /#app -->
-
-  <div id="toast">Copied!</div>
+  <div class="tip" id="tip">
+    <div class="tip-ttl" id="tt-ttl"></div>
+    <div id="tt-body"></div>
+  </div>
+  <div id="toast">&#10003; Copied to clipboard</div>
 
   <script>
-    // ─── Constants ──────────────────────────────────────────────────────────────
-    const HEURISTIC_KEYS = ['cioh', 'change_detection', 'coinjoin', 'consolidation', 'self_transfer', 'address_reuse', 'round_number', 'op_return', 'peeling_chain'];
-    const SCRIPT_COLORS = ['#f7931a', '#e53935', '#9c27b0', '#43a047', '#1e88e5', '#00bcd4', '#546e7a', '#fdd835'];
-    const PAGE_SIZE = 100; // default, overridden by select
-
-    // ─── State ──────────────────────────────────────────────────────────────────
-    let state = {
-      data: null,          // full JSON from API
-      stems: [],
-      currentStem: null,
-      activeFilters: new Set(['coinjoin', 'consolidation', 'self_transfer', 'batch_payment', 'simple_payment', 'unknown']),
-      searchQuery: '',
-      expandedTxid: null,
-      currentPage: 1,
-      pageSize: 100,
-      activeBlockIndex: null,
+    const HK = ['cioh', 'change_detection', 'coinjoin', 'consolidation', 'self_transfer', 'address_reuse', 'round_number', 'op_return', 'peeling_chain'];
+    const HI = {
+      cioh: { s: 'CIOH', l: 'Common Input Ownership', d: 'All inputs to a tx likely belong to the same entity — the foundational chain analysis assumption. Flags txs with multiple inputs.' },
+      change_detection: { s: 'Change', l: 'Change Detection', d: 'Identifies which output is "change" returned to the sender. Methods: script type match, round number, position, value analysis.' },
+      coinjoin: { s: 'CoinJoin', l: 'CoinJoin', d: 'Multiple parties deliberately mixed coins to obscure the tx graph. Detected via equal-value outputs and high input counts.' },
+      consolidation: { s: 'Consol', l: 'Consolidation', d: 'Many UTXOs merged into 1-2 outputs of the same script type. Common wallet maintenance to reduce future fees.' },
+      self_transfer: { s: 'Self', l: 'Self Transfer', d: 'All inputs and outputs appear to belong to the same wallet. No external payment component detected.' },
+      address_reuse: { s: 'Reuse', l: 'Address Reuse', d: 'Same scriptPubKey appears in both inputs and outputs, or across multiple txs in the block. Weakens privacy.' },
+      round_number: { s: 'Round', l: 'Round Number Payment', d: 'Output value is a round BTC amount (0.01, 0.1, 1 BTC), suggesting an intentional payment rather than change.' },
+      op_return: { s: 'OP_RET', l: 'OP_RETURN Data', d: 'Transaction embeds arbitrary data via OP_RETURN output. Used for timestamps, protocol markers (Omni, OTS, etc.).' },
+      peeling_chain: { s: 'Peel', l: 'Peeling Chain', d: 'Large input → small payment + large change, with the change spent again in the same pattern across blocks.' },
     };
+    const CC = {
+      coinjoin: { l: 'CoinJoin', c: '#f0505c', d: 'Privacy mixing' },
+      consolidation: { l: 'Consolidation', c: '#a855f7', d: 'UTXO cleanup' },
+      self_transfer: { l: 'Self Transfer', c: '#22c55e', d: 'Internal move' },
+      batch_payment: { l: 'Batch', c: '#eab308', d: 'Multiple pays' },
+      simple_payment: { l: 'Simple', c: '#14b8a6', d: 'Single payment' },
+      unknown: { l: 'Unknown', c: '#64748b', d: 'Unclassified' },
+    };
+    // Heuristic bar colors
+    const HC = ['#f7931a', '#14b8a6', '#f0505c', '#a855f7', '#22c55e', '#3b82f6', '#eab308', '#64748b', '#ffa94d'];
+    // Script type colors
+    const SC = ['#f7931a', '#14b8a6', '#a855f7', '#3b82f6', '#22c55e', '#eab308', '#64748b', '#f0505c'];
 
-    // ─── DOM refs ───────────────────────────────────────────────────────────────
-    const blockSelect = document.getElementById('block-select');
-    const statusDot = document.getElementById('status-dot');
-    const statusText = document.getElementById('status-text');
-    const txTable = document.getElementById('tx-table');
-    const txTbody = document.getElementById('tx-tbody');
-    const tableEmpty = document.getElementById('table-empty-state');
-    const pagination = document.getElementById('pagination');
-    const pgFirst = document.getElementById('pg-first');
-    const pgPrev = document.getElementById('pg-prev');
-    const pgNext = document.getElementById('pg-next');
-    const pgLast = document.getElementById('pg-last');
-    const pgPages = document.getElementById('pg-pages');
-    const pgInfo = document.getElementById('pg-info');
-    const pgSizeSelect = document.getElementById('pg-size-select');
-    const filterCount = document.getElementById('filter-count');
-    const txSearch = document.getElementById('txid-search');
-    const blocksList = document.getElementById('blocks-list');
-    const toast = document.getElementById('toast');
+    const S = { data: null, stems: [], filt: new Set(Object.keys(CC)), q: '', expId: null, pg: 1, ps: 100 };
+    const $ = id => document.getElementById(id);
+    const bsel = $('bsel'), sbadge = $('sbadge'), txlist = $('txlist'), twrap = $('twrap'), estat = $('estat'), pgbar = $('pgbar'), tip = $('tip'), toastEl = $('toast');
 
-    // ─── Helpers ────────────────────────────────────────────────────────────────
-    function setStatus(s, msg) {
-      statusDot.className = 'status-dot' + (s === 'loading' ? ' loading' : s === 'error' ? ' error' : '');
-      statusText.textContent = msg;
+    const fmt = n => n == null ? '—' : n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'K' : '' + n;
+    const ff = v => v == null ? '—' : parseFloat(v).toFixed(1);
+    const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
+
+    function setSt(s, m) { sbadge.className = 'sbadge ' + s; $('stxt').textContent = m }
+    function copy(t) { navigator.clipboard.writeText(t).catch(() => { }); toastEl.innerHTML = '&#10003; Copied to clipboard'; toastEl.className = 'on'; setTimeout(() => toastEl.className = '', 2200) }
+
+    // Tooltip
+    function showTip(el, ttl, body) {
+      $('tt-ttl').textContent = ttl; $('tt-body').textContent = body; tip.classList.add('on');
+      const r = el.getBoundingClientRect();
+      let x = r.left, y = r.bottom + 6;
+      if (x + 240 > innerWidth) x = innerWidth - 246;
+      if (y + 80 > innerHeight) y = r.top - tip.offsetHeight - 6;
+      tip.style.left = x + 'px'; tip.style.top = y + 'px';
     }
+    function hideTip() { tip.classList.remove('on') }
 
-    function fmt(n) {
-      if (n == null) return '—';
-      if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
-      if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
-      return n.toString();
-    }
+    // Column header tooltips
+    const thTips = {
+      'th-txid': ['Transaction ID', 'The unique 64-char hash identifying this tx on the Bitcoin blockchain. Click any row to expand full details.'],
+      'th-cls': ['Classification', 'How Sherlock categorized this transaction by combining results of all heuristics.'],
+      'th-h': ['Heuristics Triggered', 'The specific analysis patterns that fired on this transaction. Hover each tag for an explanation.'],
+      'th-cioh': ['CIOH — Common Input Ownership', 'Were multiple inputs co-spent? If YES, those inputs likely belong to the same person — the core chain-analysis assumption.'],
+      'th-chg': ['Change Output', 'Which output is probably "change" going back to the sender (vs the actual outgoing payment).'],
+    };
+    Object.entries(thTips).forEach(([id, [t, b]]) => { const el = $(id); if (!el) return; el.addEventListener('mouseover', () => showTip(el, t, b)); el.addEventListener('mouseout', hideTip) });
 
-    function fmtFee(v) {
-      if (v == null) return '—';
-      return parseFloat(v).toFixed(1);
-    }
-
-    function truncTxid(txid) {
-      return txid ? txid.slice(0, 8) + '…' + txid.slice(-6) : '—';
-    }
-
-    function copyText(text) {
-      navigator.clipboard.writeText(text).catch(() => { });
-      toast.classList.add('show');
-      setTimeout(() => toast.classList.remove('show'), 1500);
-    }
-
-    function badgeClass(cls) {
-      return 'badge badge-' + (cls || 'unknown');
-    }
-
-    function badgeLabel(cls) {
-      const labels = {
-        coinjoin: 'CoinJoin',
-        consolidation: 'Consolidation',
-        self_transfer: 'Self Transfer',
-        batch_payment: 'Batch',
-        simple_payment: 'Simple',
-        unknown: 'Unknown',
-      };
-      return labels[cls] || cls || 'Unknown';
-    }
-
-    // ─── Boot ────────────────────────────────────────────────────────────────────
     async function boot() {
-      setStatus('loading', 'FETCHING');
+      setSt('loading', 'connecting…');
       try {
-        const res = await fetch('/api/blocks');
-        const json = await res.json();
-        state.stems = (json.stems || json.files || []).map(s => s.replace(/\.json$/, ''));
-        state.stems.forEach(stem => {
-          const opt = document.createElement('option');
-          opt.value = stem; opt.textContent = stem + '.json';
-          blockSelect.appendChild(opt);
-        });
-        setStatus('ok', 'READY');
-      } catch (e) {
-        setStatus('error', 'API ERROR');
-      }
+        const r = await fetch('/api/blocks'), j = await r.json();
+        S.stems = (j.stems || j.files || []).map(s => s.replace(/\.json$/, ''));
+        S.stems.forEach(stem => { const o = document.createElement('option'); o.value = stem; o.textContent = stem + '.json'; bsel.appendChild(o) });
+        setSt('', 'ready');
+      } catch (e) { setSt('error', 'connection failed') }
     }
 
-    blockSelect.addEventListener('change', async () => {
-      const stem = blockSelect.value;
-      if (!stem) return;
-      await loadStem(stem);
-    });
+    bsel.addEventListener('change', () => { if (bsel.value) load(bsel.value) });
 
-    async function loadStem(stem) {
-      setStatus('loading', 'LOADING');
-      // Reset state
-      state.data = null;
-      state.currentStem = stem;
-      state.expandedTxid = null;
-      state.currentPage = 1;
-      state.activeBlockIndex = null;
-      clearAll();
-
+    async function load(stem) {
+      setSt('loading', 'loading ' + stem + '…');
+      Object.assign(S, { data: null, expId: null, pg: 1 });
+      clearUI();
       try {
-        const res = await fetch('/api/blocks/' + stem);
-        const json = await res.json();
-        if (!json.ok) throw new Error(json.error?.message || 'API error');
-        state.data = json;
-        setStatus('ok', 'LOADED · ' + stem);
+        const r = await fetch('/api/blocks/' + stem), j = await r.json();
+        if (!j.ok) throw new Error(j.error?.message || 'API error');
+        S.data = j;
+        setSt('ready', stem);
         renderAll();
-      } catch (e) {
-        setStatus('error', 'ERROR: ' + e.message);
-        tableEmpty.style.display = 'block';
-        tableEmpty.innerHTML = '<span class="icon">⚠</span>' + e.message;
-      }
+      } catch (e) { setSt('error', e.message); showEmpty('Error: ' + e.message) }
     }
 
-    // ─── Clear ──────────────────────────────────────────────────────────────────
-    function clearAll() {
-      txTable.style.display = 'none';
-      txTbody.innerHTML = '';
-      tableEmpty.style.display = 'block';
-      tableEmpty.innerHTML = '<span class="spinner"></span>Loading…';
-      pagination.style.display = 'none';
-      blocksList.innerHTML = '<div class="state-msg"><span class="spinner"></span>Loading…</div>';
-      document.getElementById('chart-legend').innerHTML = '';
-      document.getElementById('heuristic-hits').innerHTML = '<div class="state-msg"><span class="spinner"></span></div>';
-      // clear donut
-      const svg = document.getElementById('donut-svg');
-      svg.innerHTML = '';
+    function clearUI() {
+      showEmpty('<span class="spin"></span>');
+      $('block-list').innerHTML = '<div style="color:var(--muted);font-size:11px;text-align:center;padding:20px"><span class="spin"></span></div>';
+      $('dist-leg').innerHTML = ''; $('dsvg').innerHTML = ''; $('hit-sec').innerHTML = '';
+      $('cls-bar').innerHTML = ''; $('cls-leg').innerHTML = ''; pgbar.style.display = 'none';
+    }
+    function showEmpty(msg) {
+      estat.style.display = 'flex';
+      estat.innerHTML = `<div class="estate-ico">&#x2B21;</div><div class="estate-ttl">${msg}</div>`;
+      twrap.style.display = 'none';
     }
 
-    // ─── Render all ─────────────────────────────────────────────────────────────
     function renderAll() {
-      const d = state.data;
-      if (!d) return;
-
-      renderSidebarStats(d.analysis_summary);
-      renderMetricCards(d.analysis_summary);
-      renderFeeBar(d.analysis_summary.fee_rate_stats);
-      renderBlocksList(d.blocks);
-      renderDonut(d.analysis_summary.script_type_distribution);
-      renderHeuristicHits(getTxs());
+      const d = S.data, s = d.analysis_summary;
+      const txs = getTxs();
+      // LEFT KPIs
+      $('kv-total').textContent = fmt(s.total_transactions_analyzed);
+      $('kv-blocks').textContent = d.block_count + ' block' + (d.block_count > 1 ? 's' : '');
+      $('kv-flag').textContent = fmt(s.flagged_transactions);
+      const fp = s.total_transactions_analyzed ? ((s.flagged_transactions / s.total_transactions_analyzed) * 100).toFixed(1) + '%' : '—';
+      $('kv-fpct').textContent = fp + ' of total';
+      $('kv-h').textContent = (s.heuristics_applied || []).length;
+      const cjCount = txs.filter(t => t.classification === 'coinjoin').length;
+      $('kv-cj').textContent = fmt(cjCount);
+      // Fee strip
+      const f = s.fee_rate_stats || {};
+      const mx = Math.max(f.max_sat_vb || 1, 1);
+      $('fv-min').textContent = ff(f.min_sat_vb); $('ff-min').style.width = Math.max(2, (f.min_sat_vb / mx) * 100) + '%';
+      $('fv-med').textContent = ff(f.median_sat_vb); $('ff-med').style.width = Math.max(2, (f.median_sat_vb / mx) * 100) + '%';
+      $('fv-mean').textContent = ff(f.mean_sat_vb); $('ff-mean').style.width = Math.max(2, (f.mean_sat_vb / mx) * 100) + '%';
+      $('fv-max').textContent = ff(f.max_sat_vb); $('ff-max').style.width = '100%';
+      // Insights
+      $('iv-total').textContent = fmt(s.total_transactions_analyzed);
+      $('iv-tsub').textContent = 'across ' + d.block_count + ' block' + (d.block_count > 1 ? 's' : '');
+      $('iv-flag').textContent = fmt(s.flagged_transactions);
+      $('iv-fsub').innerHTML = '<span class="hi">' + fp + '</span> have a suspicious pattern';
+      $('iv-fee').textContent = ff(f.median_sat_vb);
+      $('iv-frsub').innerHTML = 'range: <span class="hi">' + ff(f.min_sat_vb) + '</span> – <span class="hi">' + ff(f.max_sat_vb) + '</span> sat/vB';
+      $('iv-cj').textContent = fmt(cjCount);
+      // Render sections
+      renderHits(txs);
+      renderDonut(s.script_type_distribution);
+      renderBlocks(d.blocks);
+      renderClsBar(txs);
       renderTable();
     }
 
-    function renderSidebarStats(s) {
-      document.getElementById('s-total').textContent = fmt(s.total_transactions_analyzed);
-      document.getElementById('s-flagged').textContent = fmt(s.flagged_transactions);
-      document.getElementById('s-median').textContent = fmtFee(s.fee_rate_stats?.median_sat_vb) + ' s/vB';
-      document.getElementById('s-hcount').textContent = (s.heuristics_applied || []).length;
-    }
-
-    function renderMetricCards(s) {
-      const total = s.total_transactions_analyzed;
-      const flagged = s.flagged_transactions;
-      const fee = s.fee_rate_stats || {};
-      const dist = s.script_type_distribution || {};
-      const pct = total ? ((flagged / total) * 100).toFixed(1) : 0;
-
-      document.getElementById('m-total').textContent = fmt(total);
-      document.getElementById('m-total-sub').textContent = 'in ' + (state.data?.block_count || 0) + ' blocks';
-      document.getElementById('m-flagged').textContent = fmt(flagged);
-      document.getElementById('m-flagged-pct').textContent = pct + '% flagged';
-      document.getElementById('m-mean').innerHTML = fmtFee(fee.mean_sat_vb) + '<span class="unit">sat/vB</span>';
-      document.getElementById('m-fee-range').textContent = fmtFee(fee.min_sat_vb) + ' – ' + fmtFee(fee.max_sat_vb);
-
-      const scriptCount = Object.values(dist).reduce((a, b) => a + b, 0);
-      document.getElementById('m-scripts').textContent = Object.keys(dist).length;
-      const dominant = Object.entries(dist).sort((a, b) => b[1] - a[1])[0];
-      document.getElementById('m-dominant').textContent = dominant ? dominant[0] + ' (' + fmt(dominant[1]) + ')' : '';
-    }
-
-    function renderFeeBar(fee) {
-      if (!fee) return;
-      const { min_sat_vb: mn, max_sat_vb: mx, median_sat_vb: med, mean_sat_vb: mean } = fee;
-      document.getElementById('fr-min').textContent = fmtFee(mn);
-      document.getElementById('fr-median').textContent = fmtFee(med);
-      document.getElementById('fr-mean').textContent = fmtFee(mean);
-      document.getElementById('fr-max').textContent = fmtFee(mx);
-      const pctMean = mx > 0 ? Math.min((mean / mx) * 100, 100) : 0;
-      const pctMedian = mx > 0 ? Math.min((med / mx) * 100, 100) : 50;
-      document.getElementById('fee-bar-fill').style.width = pctMean + '%';
-      const medEl = document.getElementById('fee-bar-median');
-      medEl.style.left = pctMedian + '%';
-      medEl.setAttribute('data-val', fmtFee(med));
-    }
-
-    function renderBlocksList(blocks) {
-      if (!blocks || !blocks.length) { blocksList.innerHTML = '<div class="state-msg">No blocks</div>'; return; }
-      blocksList.innerHTML = '';
-      blocks.forEach((blk, i) => {
-        const div = document.createElement('div');
-        div.className = 'block-item' + (state.activeBlockIndex === i ? ' active' : '');
-        div.dataset.idx = i;
-        const hash = blk.block_hash || '—';
-        const flagged = blk.analysis_summary?.flagged_transactions || 0;
-        div.innerHTML = `
-      <div class="b-height">#${blk.block_height || '?'}</div>
-      <div class="b-hash">${hash}</div>
-      <div class="b-meta">
-        <div class="b-tag">${fmt(blk.tx_count)} txs</div>
-        ${flagged > 0 ? `<div class="b-tag flagged">${fmt(flagged)} flagged</div>` : ''}
-      </div>`;
-        div.addEventListener('click', () => {
-          state.activeBlockIndex = i;
-          state.expandedTxid = null;
-          state.currentPage = 1;
-          document.querySelectorAll('.block-item').forEach(el => el.classList.remove('active'));
-          div.classList.add('active');
-          renderTable();
-        });
-        blocksList.appendChild(div);
+    function renderHits(txs) {
+      const el = $('hit-sec'); el.innerHTML = '';
+      if (!txs.length) { el.innerHTML = '<div style="color:var(--muted);font-size:11px;text-align:center;padding:20px">No transaction data</div>'; return }
+      const counts = {}; HK.forEach(k => counts[k] = 0);
+      txs.forEach(tx => HK.forEach(k => { if (tx.heuristics?.[k]?.detected) counts[k]++ }));
+      const total = txs.length;
+      const mx = Math.max(...Object.values(counts), 1);
+      HK.forEach((k, i) => {
+        const c = counts[k]; if (!c) return;
+        const info = HI[k] || { l: k, d: '' };
+        const pct = ((c / total) * 100).toFixed(1);
+        const barW = ((c / mx) * 100).toFixed(1);
+        const item = document.createElement('div'); item.className = 'hit-item';
+        item.innerHTML = `
+      <div class="hit-top">
+        <span class="hit-name">${info.l}</span>
+        <span class="hit-count">${fmt(c)}</span>
+      </div>
+      <div class="hit-bar"><div class="hit-fill" style="width:${barW}%;background:${HC[i % HC.length]}"></div></div>
+      <span class="hit-pct">${pct}% of transactions · ${fmt(c)} hits</span>`;
+        item.addEventListener('mouseover', () => showTip(item, info.l, info.d));
+        item.addEventListener('mouseout', hideTip);
+        el.appendChild(item);
       });
-    }
-
-    // ─── Donut Chart (pure SVG, no D3 required) ──────────────────────────────────
-    function polarToXY(cx, cy, r, angleRad) {
-      return { x: cx + r * Math.cos(angleRad), y: cy + r * Math.sin(angleRad) };
-    }
-
-    function arcPath(cx, cy, rOuter, rInner, startAngle, endAngle) {
-      const o1 = polarToXY(cx, cy, rOuter, startAngle);
-      const o2 = polarToXY(cx, cy, rOuter, endAngle);
-      const i1 = polarToXY(cx, cy, rInner, endAngle);
-      const i2 = polarToXY(cx, cy, rInner, startAngle);
-      const large = (endAngle - startAngle) > Math.PI ? 1 : 0;
-      return `M${o1.x},${o1.y} A${rOuter},${rOuter} 0 ${large},1 ${o2.x},${o2.y}
-          L${i1.x},${i1.y} A${rInner},${rInner} 0 ${large},0 ${i2.x},${i2.y} Z`;
     }
 
     function renderDonut(dist) {
-      const svgEl = document.getElementById('donut-svg');
-      svgEl.innerHTML = ''; // always wipe before redraw — no duplicates
-      document.getElementById('chart-legend').innerHTML = '';
-      document.getElementById('chart-no-d3').style.display = 'none';
-
-      if (!dist || !Object.keys(dist).length) return;
-
+      const svg = $('dsvg'); svg.innerHTML = ''; $('dist-leg').innerHTML = '';
+      if (!dist) return;
       const entries = Object.entries(dist).sort((a, b) => b[1] - a[1]);
       const total = entries.reduce((s, [, v]) => s + v, 0);
-      if (total === 0) return;
-
-      const W = 140, H = 140, CX = 70, CY = 70, R = 56, RINT = 30;
-
-      svgEl.setAttribute('width', W);
-      svgEl.setAttribute('height', H);
-      svgEl.setAttribute('viewBox', `0 0 ${W} ${H}`);
-
-      // Center hover labels
-      const ns = 'http://www.w3.org/2000/svg';
-      const labelEl = document.createElementNS(ns, 'text');
-      labelEl.setAttribute('x', CX); labelEl.setAttribute('y', CY - 4);
-      labelEl.setAttribute('text-anchor', 'middle');
-      labelEl.style.cssText = 'fill:#edf0f7;font-size:9px;font-family:monospace;pointer-events:none;opacity:0;transition:opacity 0.15s';
-      const pctEl = document.createElementNS(ns, 'text');
-      pctEl.setAttribute('x', CX); pctEl.setAttribute('y', CY + 10);
-      pctEl.setAttribute('text-anchor', 'middle');
-      pctEl.style.cssText = 'fill:#f7931a;font-size:13px;font-weight:700;font-family:monospace;pointer-events:none;opacity:0;transition:opacity 0.15s';
-
-      let angle = -Math.PI / 2; // start at top
-
-      entries.forEach(([key, val], i) => {
-        const slice = (val / total) * 2 * Math.PI;
-        const startA = angle;
-        const endA = angle + slice;
-        const color = SCRIPT_COLORS[i % SCRIPT_COLORS.length];
-        const pctVal = ((val / total) * 100).toFixed(1);
-
-        const path = document.createElementNS(ns, 'path');
-        path.setAttribute('d', arcPath(CX, CY, R, RINT, startA, endA));
-        path.setAttribute('fill', color);
-        path.setAttribute('stroke', '#0a0b0d');
-        path.setAttribute('stroke-width', '1.5');
-        path.style.cursor = 'pointer';
-        path.style.transition = 'opacity 0.15s';
-
+      if (!total) return;
+      const CX = 55, CY = 55, R = 48, RI = 30, NS = 'http://www.w3.org/2000/svg';
+      // center label elements
+      const lEl = document.createElementNS(NS, 'text');
+      lEl.setAttribute('x', CX); lEl.setAttribute('y', CY - 4); lEl.setAttribute('text-anchor', 'middle');
+      lEl.style.cssText = 'fill:#edf1fb;font-size:9px;font-family:monospace;pointer-events:none;opacity:0;transition:opacity .15s';
+      const pEl = document.createElementNS(NS, 'text');
+      pEl.setAttribute('x', CX); pEl.setAttribute('y', CY + 11); pEl.setAttribute('text-anchor', 'middle');
+      pEl.style.cssText = 'fill:#f7931a;font-size:13px;font-weight:700;font-family:monospace;pointer-events:none;opacity:0;transition:opacity .15s';
+      let angle = -Math.PI / 2;
+      const mkPt = (r, a) => ({ x: CX + r * Math.cos(a), y: CY + r * Math.sin(a) });
+      entries.forEach(([k, v], i) => {
+        const sl = (v / total) * 2 * Math.PI, sa = angle, ea = angle + sl;
+        const c = SC[i % SC.length], pv = ((v / total) * 100).toFixed(1);
+        function mkP(ro) {
+          const o1 = mkPt(ro, sa), o2 = mkPt(ro, ea), i1 = mkPt(RI, ea), i2 = mkPt(RI, sa);
+          const lg = (ea - sa) > Math.PI ? 1 : 0;
+          return `M${o1.x},${o1.y} A${ro},${ro} 0 ${lg},1 ${o2.x},${o2.y} L${i1.x},${i1.y} A${RI},${RI} 0 ${lg},0 ${i2.x},${i2.y} Z`;
+        }
+        const path = document.createElementNS(NS, 'path');
+        path.setAttribute('d', mkP(R)); path.setAttribute('fill', c);
+        path.setAttribute('stroke', '#080a0f'); path.setAttribute('stroke-width', '1.5');
+        path.style.cursor = 'pointer'; path.style.transition = 'opacity .15s';
         path.addEventListener('mouseover', () => {
-          path.setAttribute('d', arcPath(CX, CY, R + 4, RINT, startA, endA));
-          labelEl.textContent = key;
-          pctEl.textContent = pctVal + '%';
-          labelEl.style.opacity = '1';
-          pctEl.style.opacity = '1';
+          path.setAttribute('d', mkP(R + 3));
+          lEl.textContent = k; pEl.textContent = pv + '%'; lEl.style.opacity = '1'; pEl.style.opacity = '1';
+          svg.querySelectorAll('path').forEach(p => { if (p !== path) p.style.opacity = '.45' });
         });
         path.addEventListener('mouseout', () => {
-          path.setAttribute('d', arcPath(CX, CY, R, RINT, startA, endA));
-          labelEl.style.opacity = '0';
-          pctEl.style.opacity = '0';
+          path.setAttribute('d', mkP(R));
+          lEl.style.opacity = '0'; pEl.style.opacity = '0';
+          svg.querySelectorAll('path').forEach(p => p.style.opacity = '1');
         });
-
-        svgEl.appendChild(path);
-        angle = endA;
+        svg.appendChild(path); angle = ea;
+        // legend row
+        const row = document.createElement('div'); row.className = 'dr';
+        const nFmt = v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(1) + 'K' : '' + v;
+        row.innerHTML = `<div class="dr-sw" style="background:${c}"></div><span class="dr-name">${k}</span><div class="dr-bw"><div class="dr-bf" style="width:${pv}%;background:${c}"></div></div><span class="dr-cnt">${nFmt}</span><span class="dr-pct">${pv}%</span>`;
+        $('dist-leg').appendChild(row);
       });
+      svg.appendChild(lEl); svg.appendChild(pEl);
+    }
 
-      svgEl.appendChild(labelEl);
-      svgEl.appendChild(pctEl);
-
-      // Legend
-      const legend = document.getElementById('chart-legend');
-      entries.slice(0, 7).forEach(([k, v], i) => {
-        const row = document.createElement('div');
-        row.className = 'legend-row';
-        row.innerHTML = `<div class="legend-dot" style="background:${SCRIPT_COLORS[i % SCRIPT_COLORS.length]}"></div>
-      <span>${k}</span><span class="legend-val">${fmt(v)}</span>`;
-        legend.appendChild(row);
+    function renderBlocks(blocks) {
+      const el = $('block-list'); el.innerHTML = '';
+      if (!blocks?.length) { el.innerHTML = '<div style="color:var(--muted);font-size:11px;text-align:center;padding:20px">None</div>'; return }
+      blocks.forEach((blk, i) => {
+        const fl = blk.analysis_summary?.flagged_transactions || 0;
+        const txc = blk.tx_count || 0;
+        const flPct = txc ? ((fl / txc) * 100).toFixed(0) : 0;
+        const div = document.createElement('div'); div.className = 'bc' + (i === 0 ? ' on' : '');
+        const hash = blk.block_hash || '—';
+        const hashS = hash.length > 24 ? hash.slice(0, 12) + '…' + hash.slice(-10) : hash;
+        div.innerHTML = `
+      <div class="bc-header">
+        <span class="bc-h">#${blk.block_height || '?'}</span>
+        ${fl ? `<span class="bc-flag">${fmt(fl)} flagged</span>` : ''}
+      </div>
+      <div class="bc-hash" title="${hash}">${hashS}</div>
+      <div class="bc-stats">
+        <span class="bcs bcs-d">${fmt(txc)} txs</span>
+        <span class="bcs bcs-d">${(blk.analysis_summary?.heuristics_applied || []).length} heuristics</span>
+      </div>
+      <div class="bc-heurbar"><div class="bc-hf" style="width:${Math.max(2, flPct)}%"></div></div>`;
+        div.addEventListener('click', () => {
+          document.querySelectorAll('.bc').forEach(c => c.classList.remove('on'));
+          div.classList.add('on'); S.expId = null; S.pg = 1; renderTable();
+        });
+        el.appendChild(div);
       });
     }
 
-    // ─── Heuristic hits ─────────────────────────────────────────────────────────
-    function renderHeuristicHits(txs) {
-      const container = document.getElementById('heuristic-hits');
-      container.innerHTML = '';
-      if (!txs || !txs.length) { container.innerHTML = '<div class="state-msg">No transactions</div>'; return; }
-
-      const counts = {};
-      HEURISTIC_KEYS.forEach(k => counts[k] = 0);
-      txs.forEach(tx => {
-        if (!tx.heuristics) return;
-        HEURISTIC_KEYS.forEach(k => { if (tx.heuristics[k]?.detected) counts[k]++; });
+    function renderClsBar(txs) {
+      const bar = $('cls-bar'), leg = $('cls-leg');
+      bar.innerHTML = ''; leg.innerHTML = '';
+      if (!txs.length) return;
+      const counts = {}; Object.keys(CC).forEach(k => counts[k] = 0);
+      txs.forEach(t => { const c = t.classification || 'unknown'; counts[c] = (counts[c] || 0) + 1 });
+      const total = txs.length;
+      let summary = [];
+      Object.entries(CC).forEach(([k, cfg]) => {
+        const n = counts[k] || 0; if (!n) return;
+        const pct = (n / total) * 100;
+        const seg = document.createElement('div');
+        seg.className = 'cls-seg'; seg.style.cssText = `width:${pct}%;background:${cfg.c}`;
+        seg.title = `${cfg.l}: ${fmt(n)} (${pct.toFixed(1)}%)`;
+        seg.addEventListener('click', () => toggleFilt(k)); bar.appendChild(seg);
+        const item = document.createElement('div');
+        item.className = 'cl-item' + (S.filt.has(k) ? '' : ' off'); item.dataset.c = k;
+        item.innerHTML = `<div class="cl-dot" style="background:${cfg.c}"></div><span>${cfg.l}</span><span class="cl-cnt">${fmt(n)}</span>`;
+        item.addEventListener('click', () => toggleFilt(k)); leg.appendChild(item);
+        summary.push(`${cfg.l}: ${pct.toFixed(1)}%`);
       });
-
-      const maxVal = Math.max(...Object.values(counts), 1);
-      HEURISTIC_KEYS.forEach(k => {
-        if (!counts[k]) return;
-        const row = document.createElement('div');
-        row.className = 'h-hit-row';
-        row.innerHTML = `<div class="h-hit-name">${k.replace(/_/g, ' ')}</div>
-      <div class="h-hit-bar-wrap"><div class="h-hit-bar" style="width:${(counts[k] / maxVal) * 100}%"></div></div>
-      <div class="h-hit-count">${fmt(counts[k])}</div>`;
-        container.appendChild(row);
-      });
+      $('cls-sub').textContent = summary.slice(0, 3).join(' · ');
     }
 
-    // ─── Get filtered transactions ───────────────────────────────────────────────
-    function getTxs() {
-      if (!state.data) return [];
-      const blocks = state.data.blocks;
-      if (!blocks || !blocks.length) return [];
-      // transactions only in blocks[0]
-      return blocks[0].transactions || [];
+    function toggleFilt(k) {
+      S.filt.has(k) ? S.filt.delete(k) : S.filt.add(k);
+      S.pg = 1; S.expId = null;
+      document.querySelectorAll('.chip').forEach(c => { if (c.dataset.c === k) c.classList.toggle('on', S.filt.has(k)) });
+      document.querySelectorAll('.cl-item').forEach(c => { if (c.dataset.c === k) c.classList.toggle('off', !S.filt.has(k)) });
+      renderTable();
     }
 
-    function getFilteredTxs() {
-      const txs = getTxs();
-      const q = state.searchQuery.toLowerCase();
-      return txs.filter(tx => {
-        if (!state.activeFilters.has(tx.classification || 'unknown')) return false;
+    function getTxs() { return S.data?.blocks?.[0]?.transactions || [] }
+    function getFilt() {
+      const q = S.q.toLowerCase();
+      return getTxs().filter(tx => {
+        if (!S.filt.has(tx.classification || 'unknown')) return false;
         if (q && !(tx.txid || '').toLowerCase().includes(q)) return false;
         return true;
       });
     }
 
-    // ─── Table rendering ─────────────────────────────────────────────────────────
     function renderTable() {
-      const filtered = getFilteredTxs();
-      const total = getTxs().length;
-      filterCount.textContent = fmt(filtered.length) + ' / ' + fmt(total) + ' txs';
-
-      if (!filtered.length) {
-        txTable.style.display = 'none';
-        tableEmpty.style.display = 'block';
-        tableEmpty.innerHTML = state.data
-          ? '<span class="icon">◎</span>No transactions match the current filters'
-          : '<span class="icon">◈</span>Select a block file to begin';
-        pagination.style.display = 'none';
-        return;
+      const filt = getFilt(), total = getTxs().length;
+      $('rcnt').textContent = fmt(filt.length) + ' / ' + fmt(total) + ' txs';
+      if (!filt.length) {
+        showEmpty(S.data ? 'No transactions match the current filters' : 'Select a block file above');
+        pgbar.style.display = 'none'; return;
       }
-
-      const ps = state.pageSize;
-      const totalPgs = Math.ceil(filtered.length / ps);
-      // clamp current page
-      if (state.currentPage > totalPgs) state.currentPage = totalPgs;
-      if (state.currentPage < 1) state.currentPage = 1;
-
-      const start = (state.currentPage - 1) * ps;
-      const end = Math.min(start + ps, filtered.length);
-      const slice = filtered.slice(start, end);
-
-      tableEmpty.style.display = 'none';
-      txTable.style.display = 'table';
-      txTbody.innerHTML = '';
-
+      const ps = S.ps, pages = Math.ceil(filt.length / ps);
+      S.pg = clamp(S.pg, 1, pages);
+      const st = (S.pg - 1) * ps, en = Math.min(st + ps, filt.length);
+      const slice = filt.slice(st, en);
+      estat.style.display = 'none'; twrap.style.display = 'block';
+      txlist.innerHTML = '';
       const frag = document.createDocumentFragment();
-      slice.forEach(tx => {
-        frag.appendChild(buildTxRow(tx));
-        if (state.expandedTxid === tx.txid) frag.appendChild(buildExpandedRow(tx));
-      });
-      txTbody.appendChild(frag);
-
-      // Scroll table back to top on page change
-      document.getElementById('table-wrap').scrollTop = 0;
-
-      // Pagination controls
-      renderPagination(totalPgs, filtered.length, start, end);
+      slice.forEach(tx => frag.appendChild(mkRow(tx)));
+      txlist.appendChild(frag);
+      $('tarea').scrollTop = 0;
+      renderPg(pages, filt.length, st, en);
     }
 
-    function renderPagination(totalPgs, filteredLen, start, end) {
-      pagination.style.display = 'flex';
-
-      const cur = state.currentPage;
-      pgFirst.disabled = cur === 1;
-      pgPrev.disabled = cur === 1;
-      pgNext.disabled = cur === totalPgs;
-      pgLast.disabled = cur === totalPgs;
-
-      // Page number buttons: show at most 7 around current
-      pgPages.innerHTML = '';
-      const WING = 2;
-      let lo = Math.max(1, cur - WING);
-      let hi = Math.min(totalPgs, cur + WING);
-      // expand window if near edges
-      if (cur <= WING + 1) hi = Math.min(totalPgs, WING * 2 + 1);
-      if (cur >= totalPgs - WING) lo = Math.max(1, totalPgs - WING * 2);
-
-      function mkPageBtn(n) {
-        const b = document.createElement('button');
-        b.className = 'pg-btn' + (n === cur ? ' active' : '');
-        b.textContent = n;
-        b.addEventListener('click', () => { state.currentPage = n; state.expandedTxid = null; renderTable(); });
-        return b;
-      }
-      function mkSep() {
-        const s = document.createElement('span');
-        s.className = 'pg-sep'; s.textContent = '…'; return s;
-      }
-
-      if (lo > 1) { pgPages.appendChild(mkPageBtn(1)); if (lo > 2) pgPages.appendChild(mkSep()); }
-      for (let i = lo; i <= hi; i++) pgPages.appendChild(mkPageBtn(i));
-      if (hi < totalPgs) { if (hi < totalPgs - 1) pgPages.appendChild(mkSep()); pgPages.appendChild(mkPageBtn(totalPgs)); }
-
-      pgInfo.textContent = (start + 1) + '–' + end + ' of ' + fmt(filteredLen);
-    }
-
-    function buildTxRow(tx) {
-      const tr = document.createElement('tr');
-      tr.dataset.txid = tx.txid;
-      if (state.expandedTxid === tx.txid) tr.classList.add('expanded');
-
+    function mkRow(tx) {
       const h = tx.heuristics || {};
+      const cfg = CC[tx.classification] || CC.unknown;
       const cioh = h.cioh?.detected;
-      const change = h.change_detection;
-
-      // heuristic dots
-      const dots = HEURISTIC_KEYS.map(k =>
-        `<div class="h-dot ${h[k]?.detected ? 'on' : 'off'}" data-tip="${k}"></div>`
-      ).join('');
-
-      // change info
-      let changeHtml = '—';
-      if (change?.detected) {
-        changeHtml = `<span>#${change.likely_change_index ?? '?'}</span> <span style="color:var(--text-dim)">${change.confidence || ''}</span>`;
+      const chg = h.change_detection;
+      const hits = HK.filter(k => h[k]?.detected);
+      const pillsHtml = hits.length
+        ? hits.map(k => `<span class="hpill on" data-h="${k}">${HI[k]?.s || k}</span>`).join('')
+        : '<span style="font-size:10px;color:var(--muted)">—</span>';
+      let chgHtml = '<span style="color:var(--muted)">—</span>';
+      if (chg?.detected) {
+        const cf = chg.confidence || '';
+        chgHtml = `<span class="chg-y">Out <span class="chg-idx">#${chg.likely_change_index ?? '?'}</span><span class="chg-cf cf-${cf}">${cf}</span></span>`;
       }
-
-      tr.innerHTML = `
-    <td class="txid-cell">
-      <span class="txid-short" title="${tx.txid}">${truncTxid(tx.txid)}</span>
-      <button class="copy-btn" title="Copy txid">⎘</button>
-    </td>
-    <td><span class="${badgeClass(tx.classification)}">${badgeLabel(tx.classification)}</span></td>
-    <td><div class="h-dots">${dots}</div></td>
-    <td><span class="cioh-flag ${cioh ? '' : 'off'}">${cioh ? 'YES' : 'NO'}</span></td>
-    <td class="change-cell">${changeHtml}</td>`;
-
-      tr.querySelector('.txid-short').addEventListener('click', e => {
-        e.stopPropagation();
-        toggleExpand(tx.txid);
+      const div = document.createElement('div');
+      div.className = 'tx-row fi' + (S.expId === tx.txid ? ' exp' : '');
+      div.innerHTML = `<div class="tx-main">
+    <div class="c-txid">
+      <span class="txid-t">${tx.txid.slice(0, 10)}<span class="dp">…${tx.txid.slice(-8)}</span></span>
+      <button class="cpbtn" title="Copy full txid">&#9141;</button>
+    </div>
+    <div><span class="cls-b cb-${tx.classification || 'unknown'}"><span class="dot" style="background:${cfg.c}"></span>${cfg.l}</span></div>
+    <div class="hpills">${pillsHtml}</div>
+    <div class="c-cioh">${cioh ? '<span class="cioh-y">YES</span>' : '<span class="cioh-n">—</span>'}</div>
+    <div class="c-chg">${chgHtml}</div>
+  </div>
+  ${S.expId === tx.txid ? mkDet(tx) : ''}`;
+      div.querySelector('.cpbtn').addEventListener('click', e => { e.stopPropagation(); copy(tx.txid) });
+      div.querySelectorAll('.hpill[data-h]').forEach(p => {
+        const info = HI[p.dataset.h] || { l: p.dataset.h, d: '' };
+        p.addEventListener('mouseover', () => showTip(p, info.l, info.d));
+        p.addEventListener('mouseout', hideTip);
       });
-      tr.querySelector('.copy-btn').addEventListener('click', e => {
-        e.stopPropagation();
-        copyText(tx.txid);
-      });
-      tr.addEventListener('click', () => toggleExpand(tx.txid));
-      return tr;
+      div.addEventListener('click', () => { S.expId = S.expId === tx.txid ? null : tx.txid; renderTable() });
+      return div;
     }
 
-    function buildExpandedRow(tx) {
-      const etr = document.createElement('tr');
-      etr.className = 'expanded-row';
-      const etd = document.createElement('td');
-      etd.colSpan = 5;
-
+    function mkDet(tx) {
       const h = tx.heuristics || {};
-      const hItems = HEURISTIC_KEYS.map(k => {
-        const r = h[k];
-        const det = r?.detected;
-        let detail = '';
-        if (k === 'change_detection' && det) {
-          detail = `idx:${r.likely_change_index ?? '?'} · ${r.method || ''} · ${r.confidence || ''}`;
-        } else if (k === 'op_return' && det) {
-          detail = r.protocol || '';
-        }
-        return `<div class="h-item ${det ? 'detected' : ''}">
-      <div class="h-name">${k.replace(/_/g, ' ')}</div>
-      <div class="h-status">${det ? '● DETECTED' : '○ clean'}</div>
-      ${detail ? `<div class="h-detail">${detail}</div>` : ''}
-    </div>`;
+      const cards = HK.map(k => {
+        const r = h[k], det = r?.detected;
+        const info = HI[k] || { l: k, d: 'No description.' };
+        let xtra = '';
+        if (k === 'change_detection' && det) xtra = `<div class="hd-xtra">Output #${r.likely_change_index ?? '?'} &nbsp;·&nbsp; method: ${r.method || '—'} &nbsp;·&nbsp; confidence: ${r.confidence || '?'}</div>`;
+        else if (k === 'op_return' && det && r.protocol) xtra = `<div class="hd-xtra">Protocol: ${r.protocol}</div>`;
+        return `<div class="hd-card${det ? ' det' : ''}">
+      <div class="hd-top"><span class="hd-name">${info.l}</span><span class="hd-st ${det ? 'y' : 'n'}">${det ? 'Detected' : 'Clean'}</span></div>
+      <div class="hd-desc">${info.d}</div>${xtra}</div>`;
       }).join('');
-
-      etd.innerHTML = `<div class="expanded-inner">
-    <div>
-      <div class="expanded-txid" title="${tx.txid}">
-        TXID: ${tx.txid}
-        <button class="copy-btn" style="margin-left:8px;" onclick="copyText('${tx.txid}')">⎘</button>
-      </div>
-      <div class="h-grid">${hItems}</div>
-    </div>
-    <div>
-      <span class="${badgeClass(tx.classification)}" style="font-size:11px;padding:4px 10px;">${badgeLabel(tx.classification)}</span>
-    </div>
+      return `<div class="tx-det">
+    <div class="det-txid"><strong>TXID:</strong>&nbsp;${tx.txid}<button class="cpbtn" style="opacity:1;margin-left:6px" onclick="copy('${tx.txid}');event.stopPropagation()">&#9141;</button></div>
+    <div class="hd-grid">${cards}</div>
   </div>`;
-      etr.appendChild(etd);
-      return etr;
     }
 
-    function toggleExpand(txid) {
-      state.expandedTxid = state.expandedTxid === txid ? null : txid;
-      renderTable();
+    function renderPg(total, fl, st, en) {
+      pgbar.style.display = 'flex';
+      const cur = S.pg;
+      $('pg1').disabled = cur === 1; $('pgp').disabled = cur === 1;
+      $('pgn').disabled = cur === total; $('pgl').disabled = cur === total;
+      const nums = $('pgnums'); nums.innerHTML = '';
+      const W = 2; let lo = Math.max(1, cur - W), hi = Math.min(total, cur + W);
+      if (cur <= W + 1) hi = Math.min(total, W * 2 + 1);
+      if (cur >= total - W) lo = Math.max(1, total - W * 2);
+      function mkB(n) { const b = document.createElement('button'); b.className = 'pg-b' + (n === cur ? ' cur' : ''); b.textContent = n; b.addEventListener('click', () => { S.pg = n; S.expId = null; renderTable() }); return b }
+      function mkD() { const s = document.createElement('span'); s.className = 'pg-dots'; s.textContent = '…'; return s }
+      if (lo > 1) { nums.appendChild(mkB(1)); if (lo > 2) nums.appendChild(mkD()) }
+      for (let i = lo; i <= hi; i++)nums.appendChild(mkB(i));
+      if (hi < total) { if (hi < total - 1) nums.appendChild(mkD()); nums.appendChild(mkB(total)) }
+      $('pginf').textContent = (st + 1) + '–' + en + ' of ' + fmt(fl);
     }
 
-    // ─── Filter chips ────────────────────────────────────────────────────────────
-    document.querySelectorAll('.chip').forEach(chip => {
-      chip.addEventListener('click', () => {
-        const cls = chip.dataset.cls;
-        if (state.activeFilters.has(cls)) {
-          state.activeFilters.delete(cls);
-          chip.classList.remove('active');
-        } else {
-          state.activeFilters.add(cls);
-          chip.classList.add('active');
-        }
-        state.currentPage = 1;
-        state.expandedTxid = null;
-        renderTable();
-      });
-    });
+    document.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => toggleFilt(c.dataset.c)));
+    let st2; $('txsrch').addEventListener('input', e => { clearTimeout(st2); st2 = setTimeout(() => { S.q = e.target.value.trim(); S.pg = 1; S.expId = null; renderTable() }, 200) });
+    $('pg1').addEventListener('click', () => { S.pg = 1; S.expId = null; renderTable() });
+    $('pgp').addEventListener('click', () => { S.pg--; S.expId = null; renderTable() });
+    $('pgn').addEventListener('click', () => { S.pg++; S.expId = null; renderTable() });
+    $('pgl').addEventListener('click', () => { S.pg = Math.ceil(getFilt().length / S.ps); S.expId = null; renderTable() });
+    $('pg-sz').addEventListener('change', e => { S.ps = parseInt(e.target.value, 10); S.pg = 1; S.expId = null; renderTable() });
 
-    // ─── Search ──────────────────────────────────────────────────────────────────
-    let searchTimeout;
-    txSearch.addEventListener('input', () => {
-      clearTimeout(searchTimeout);
-      searchTimeout = setTimeout(() => {
-        state.searchQuery = txSearch.value.trim();
-        state.currentPage = 1;
-        state.expandedTxid = null;
-        renderTable();
-      }, 200);
-    });
-
-    // ─── Pagination controls ─────────────────────────────────────────────────────
-    pgFirst.addEventListener('click', () => { state.currentPage = 1; state.expandedTxid = null; renderTable(); });
-    pgPrev.addEventListener('click', () => { state.currentPage--; state.expandedTxid = null; renderTable(); });
-    pgNext.addEventListener('click', () => { state.currentPage++; state.expandedTxid = null; renderTable(); });
-    pgLast.addEventListener('click', () => { state.currentPage = Math.ceil(getFilteredTxs().length / state.pageSize); state.expandedTxid = null; renderTable(); });
-    pgSizeSelect.addEventListener('change', () => {
-      state.pageSize = parseInt(pgSizeSelect.value, 10);
-      state.currentPage = 1;
-      state.expandedTxid = null;
-      renderTable();
-    });
-
-    // ─── Start ───────────────────────────────────────────────────────────────────
     boot();
   </script>
 </body>
