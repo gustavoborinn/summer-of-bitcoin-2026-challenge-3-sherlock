@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sherlock — Bitcoin Chain Analysis</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0 }
+    :root {
+      --bg:     #050810;
+      --bg2:    #080d1a;
+      --panel:  #0a1020;
+      --border: #112240;
+      --border2:#1a3060;
+      --gold:   #f7931a;
+      --gold2:  #c97010;
+      --cyan:   #00d4ff;
+      --green:  #00ff88;
+      --red:    #ff4560;
+      --amber:  #ffb800;
+      --purple: #a855f7;
+      --text:   #c8d8f0;
+      --muted:  #4a6080;
+      --mono:   'IBM Plex Mono', monospace;
+      --display:'Outfit', sans-serif;
+    }
+    html, body { height: 100%; background: var(--bg); color: var(--text);
+      font-family: var(--display); font-size: 13px; line-height: 1.5;
+      -webkit-font-smoothing: antialiased; overflow: hidden }
+
+    /* ── Layout ── */
+    .app { display: grid; grid-template-rows: 52px 1fr; height: 100vh }
+    .topbar { display: flex; align-items: center; gap: 16px; padding: 0 20px;
+      background: var(--bg2); border-bottom: 1px solid var(--border);
+      position: relative; z-index: 10 }
+    .logo { font-size: 17px; font-weight: 700; color: var(--gold);
+      letter-spacing: .5px; display: flex; align-items: center; gap: 8px }
+    .logo svg { width: 20px; height: 20px }
+    .logo-sub { font-size: 11px; color: var(--muted); font-weight: 400 }
+    .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px }
+    select, button {
+      background: var(--panel); border: 1px solid var(--border2); color: var(--text);
+      border-radius: 6px; font-family: var(--display); font-size: 12px;
+      padding: 5px 10px; cursor: pointer; outline: none }
+    select:focus, button:focus { border-color: var(--gold) }
+    button.primary { background: var(--gold); color: #000; font-weight: 600;
+      border-color: var(--gold) }
+    button.primary:hover { background: var(--gold2) }
+    .pill { padding: 2px 8px; border-radius: 99px; font-size: 11px;
+      font-weight: 600; font-family: var(--mono) }
+
+    .main { display: grid; grid-template-columns: 280px 1fr; overflow: hidden }
+    .sidebar { background: var(--bg2); border-right: 1px solid var(--border);
+      overflow-y: auto; padding: 12px }
+    .content { overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px }
+
+    /* ── Cards ── */
+    .card { background: var(--panel); border: 1px solid var(--border);
+      border-radius: 8px; padding: 14px }
+    .card-title { font-size: 11px; font-weight: 600; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .8px; margin-bottom: 10px }
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px }
+    .stat { background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 6px; padding: 8px 10px }
+    .stat-label { font-size: 10px; color: var(--muted); margin-bottom: 2px }
+    .stat-value { font-size: 16px; font-weight: 700; font-family: var(--mono);
+      color: var(--gold) }
+    .stat-value.cyan  { color: var(--cyan) }
+    .stat-value.green { color: var(--green) }
+    .stat-value.red   { color: var(--red) }
+
+    /* ── Fee rate bar ── */
+    .fee-bar-wrap { margin-top: 8px }
+    .fee-labels { display: flex; justify-content: space-between;
+      font-size: 10px; color: var(--muted); margin-bottom: 4px }
+    .fee-track { height: 6px; background: var(--border); border-radius: 3px;
+      position: relative }
+    .fee-fill { height: 100%; border-radius: 3px;
+      background: linear-gradient(90deg, var(--green), var(--gold), var(--red)) }
+    .fee-median { position: absolute; top: -3px; width: 2px; height: 12px;
+      background: var(--cyan); border-radius: 1px }
+
+    /* ── Script type chart ── */
+    #script-chart { width: 100%; height: 160px }
+    .legend { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px }
+    .legend-item { display: flex; align-items: center; gap: 4px;
+      font-size: 11px; color: var(--text) }
+    .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0 }
+
+    /* ── Block list ── */
+    .block-item { padding: 8px 10px; border-radius: 6px; cursor: pointer;
+      border: 1px solid transparent; margin-bottom: 4px; transition: all .15s }
+    .block-item:hover { border-color: var(--border2); background: var(--bg) }
+    .block-item.active { border-color: var(--gold); background: rgba(247,147,26,.07) }
+    .block-item-hash { font-family: var(--mono); font-size: 10px;
+      color: var(--muted); margin-top: 2px; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis }
+    .block-item-meta { display: flex; gap: 6px; align-items: center }
+    .block-item-height { font-weight: 700; font-size: 13px; color: var(--gold) }
+    .block-item-txcount { font-size: 11px; color: var(--muted) }
+
+    /* ── Filter bar ── */
+    .filter-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center }
+    .filter-bar input { background: var(--panel); border: 1px solid var(--border2);
+      color: var(--text); border-radius: 6px; font-family: var(--mono);
+      font-size: 11px; padding: 5px 10px; outline: none; width: 200px }
+    .filter-bar input:focus { border-color: var(--gold) }
+    .filter-chips { display: flex; gap: 4px; flex-wrap: wrap }
+    .chip { padding: 3px 10px; border-radius: 99px; font-size: 11px;
+      font-weight: 600; cursor: pointer; border: 1px solid var(--border2);
+      background: var(--panel); color: var(--muted); transition: all .12s }
+    .chip:hover { border-color: var(--border2); color: var(--text) }
+    .chip.on { color: #000 }
+
+    /* ── Tx table ── */
+    .tx-table-wrap { overflow-x: auto }
+    table { width: 100%; border-collapse: collapse; font-size: 12px }
+    th { text-align: left; padding: 6px 10px; font-size: 10px; font-weight: 600;
+      color: var(--muted); text-transform: uppercase; letter-spacing: .6px;
+      border-bottom: 1px solid var(--border); white-space: nowrap }
+    td { padding: 6px 10px; border-bottom: 1px solid var(--border);
+      font-family: var(--mono); vertical-align: middle }
+    tr:hover td { background: rgba(255,255,255,.02) }
+    tr.expanded td { background: rgba(247,147,26,.04) }
+    .txid-cell { max-width: 120px; overflow: hidden; text-overflow: ellipsis;
+      white-space: nowrap; font-size: 11px; color: var(--cyan); cursor: pointer }
+    .txid-cell:hover { color: var(--gold) }
+
+    /* ── Classification badges ── */
+    .badge { display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 8px; border-radius: 99px; font-size: 10px; font-weight: 700;
+      font-family: var(--display); text-transform: uppercase; letter-spacing: .5px }
+    .badge-simple_payment  { background: rgba(0,212,255,.12); color: var(--cyan) }
+    .badge-consolidation   { background: rgba(168,85,247,.12); color: var(--purple) }
+    .badge-coinjoin        { background: rgba(255,69,96,.12);  color: var(--red) }
+    .badge-self_transfer   { background: rgba(0,255,136,.12);  color: var(--green) }
+    .badge-batch_payment   { background: rgba(255,184,0,.12);  color: var(--amber) }
+    .badge-unknown         { background: rgba(74,96,128,.12);  color: var(--muted) }
+
+    /* ── Heuristic dots ── */
+    .h-dots { display: flex; gap: 3px; flex-wrap: wrap }
+    .h-dot { width: 7px; height: 7px; border-radius: 50%;
+      background: var(--border2); title-attr: attr(title) }
+    .h-dot.hit { background: var(--gold) }
+
+    /* ── Expanded detail row ── */
+    .detail-row td { padding: 10px 14px; background: var(--bg2) }
+    .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px,1fr)); gap: 8px }
+    .heuristic-card { background: var(--panel); border: 1px solid var(--border);
+      border-radius: 6px; padding: 8px 10px }
+    .heuristic-name { font-size: 10px; font-weight: 600; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .6px; margin-bottom: 4px }
+    .heuristic-detected { font-size: 12px; font-weight: 700 }
+    .heuristic-detected.yes { color: var(--gold) }
+    .heuristic-detected.no  { color: var(--muted) }
+    .heuristic-meta { font-size: 10px; color: var(--muted); margin-top: 3px;
+      font-family: var(--mono) }
+
+    /* ── Empty / loading states ── */
+    .empty { text-align: center; padding: 60px 20px; color: var(--muted) }
+    .empty-icon { font-size: 40px; margin-bottom: 12px }
+    .loading { color: var(--muted); font-size: 12px; padding: 20px;
+      text-align: center; animation: pulse 1.2s ease-in-out infinite }
+    @keyframes pulse { 0%,100%{opacity:.4} 50%{opacity:1} }
+
+    /* ── Heuristic sidebar stats ── */
+    .h-stat { display: flex; align-items: center; justify-content: space-between;
+      padding: 5px 0; border-bottom: 1px solid var(--border) }
+    .h-stat:last-child { border-bottom: none }
+    .h-stat-name { font-size: 11px; color: var(--text) }
+    .h-stat-count { font-family: var(--mono); font-size: 11px; color: var(--gold);
+      font-weight: 700 }
+    .section-sep { border: none; border-top: 1px solid var(--border); margin: 10px 0 }
+
+    /* ── Scrollbars ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px }
+    ::-webkit-scrollbar-track { background: var(--bg2) }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ── Top bar ── -->
+  <div class="topbar">
+    <div class="logo">
+      <svg viewBox="0 0 20 20" fill="none">
+        <circle cx="8" cy="8" r="5" stroke="#f7931a" stroke-width="2"/>
+        <line x1="12" y1="12" x2="18" y2="18" stroke="#f7931a" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      Sherlock
+      <span class="logo-sub">Bitcoin Chain Analysis</span>
+    </div>
+    <div class="topbar-right">
+      <select id="file-select">
+        <option value="">— select block file —</option>
+      </select>
+      <span id="status-pill" class="pill" style="background:rgba(0,255,136,.12);color:var(--green)">● live</span>
+    </div>
+  </div>
+
+  <!-- ── Main grid ── -->
+  <div class="main">
+
+    <!-- ── Sidebar ── -->
+    <div class="sidebar">
+      <div class="card-title" style="margin-bottom:8px">Blocks</div>
+      <div id="block-list"><div class="loading">loading…</div></div>
+
+      <hr class="section-sep" style="margin:14px 0">
+
+      <div class="card-title" style="margin-bottom:8px">Heuristic Hits</div>
+      <div id="h-stats"><div class="loading">—</div></div>
+    </div>
+
+    <!-- ── Content ── -->
+    <div class="content">
+
+      <!-- Stats row -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+        <div class="card">
+          <div class="card-title">Total Transactions</div>
+          <div class="stat-value" id="stat-total">—</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Flagged</div>
+          <div class="stat-value red" id="stat-flagged">—</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Median Fee Rate</div>
+          <div class="stat-value cyan" id="stat-median">—</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">sat/vB</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Heuristics</div>
+          <div class="stat-value green" id="stat-heuristics">—</div>
+        </div>
+      </div>
+
+      <!-- Fee rate + Script type row -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="card">
+          <div class="card-title">Fee Rate Distribution (sat/vB)</div>
+          <div class="stat-grid" style="grid-template-columns:repeat(4,1fr)">
+            <div class="stat"><div class="stat-label">Min</div>
+              <div class="stat-value green" style="font-size:13px" id="fee-min">—</div></div>
+            <div class="stat"><div class="stat-label">Median</div>
+              <div class="stat-value cyan" style="font-size:13px" id="fee-med">—</div></div>
+            <div class="stat"><div class="stat-label">Mean</div>
+              <div class="stat-value" style="font-size:13px" id="fee-mean">—</div></div>
+            <div class="stat"><div class="stat-label">Max</div>
+              <div class="stat-value red" style="font-size:13px" id="fee-max">—</div></div>
+          </div>
+          <div class="fee-bar-wrap">
+            <div class="fee-track">
+              <div class="fee-fill" id="fee-fill" style="width:100%"></div>
+              <div class="fee-median" id="fee-median-marker" style="left:50%"></div>
+            </div>
+            <div class="fee-labels"><span id="fee-bar-min">0</span><span id="fee-bar-max">—</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Script Type Distribution</div>
+          <svg id="script-chart"></svg>
+          <div class="legend" id="script-legend"></div>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="card" style="padding:10px 14px">
+        <div class="filter-bar">
+          <input type="text" id="tx-search" placeholder="search txid…">
+          <div class="filter-chips" id="class-chips"></div>
+          <div style="margin-left:auto;font-size:11px;color:var(--muted)" id="tx-count-label"></div>
+        </div>
+      </div>
+
+      <!-- Tx table -->
+      <div class="card" style="padding:0;flex:1;min-height:0;overflow:hidden">
+        <div class="tx-table-wrap" style="height:100%;overflow-y:auto">
+          <table id="tx-table">
+            <thead>
+              <tr>
+                <th>TXID</th>
+                <th>Classification</th>
+                <th>Heuristics</th>
+                <th>CIOH</th>
+                <th>Change</th>
+              </tr>
+            </thead>
+            <tbody id="tx-body">
+              <tr><td colspan="5" class="empty">
+                <div class="empty-icon">🔍</div>
+                Select a block file to begin analysis
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<script>
+// ── D3 is optional for the pie chart — load if available ──────────────────
+const D3_PATH = '/vendor/d3.min.js';
+let d3 = null;
+
+// ── State ──────────────────────────────────────────────────────────────────
+let allData    = null;   // full JSON from /api/blocks/:stem
+let allTxs     = [];     // blocks[0].transactions
+let activeBlock = null;  // currently selected ParsedBlock index
+let filterClass = null;
+let filterSearch = '';
+
+const COLORS = {
+  p2wpkh:  '#00d4ff', p2tr: '#f7931a', p2pkh: '#ffb800',
+  p2sh:    '#a855f7', p2wsh: '#00ff88', op_return: '#ff4560', unknown: '#4a6080'
+};
+const CLASS_COLOR = {
+  simple_payment: '#00d4ff', consolidation: '#a855f7', coinjoin: '#ff4560',
+  self_transfer:  '#00ff88', batch_payment: '#ffb800', unknown: '#4a6080'
+};
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+async function boot() {
+  // Try to load D3
+  try {
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = D3_PATH; s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+    d3 = window.d3;
+  } catch(_) { /* D3 not available — pie chart disabled */ }
+
+  await loadStems();
+}
+
+async function loadStems() {
+  try {
+    const r = await fetch('/api/blocks');
+    const j = await r.json();
+    const stems = j.stems || [];
+    const sel = document.getElementById('file-select');
+    stems.forEach(s => {
+      const o = document.createElement('option');
+      o.value = s; o.textContent = s + '.dat';
+      sel.appendChild(o);
+    });
+    if (stems.length === 1) { sel.value = stems[0]; await loadStem(stems[0]); }
+    sel.addEventListener('change', () => { if (sel.value) loadStem(sel.value); });
+
+    // Populate block list
+    const bl = document.getElementById('block-list');
+    if (stems.length === 0) { bl.innerHTML = '<div class="loading">No outputs found.<br>Run cli.sh first.</div>'; return; }
+    bl.innerHTML = '';
+    stems.forEach(s => {
+      const d = document.createElement('div');
+      d.className = 'block-item';
+      d.innerHTML = `<div class="block-item-meta"><span class="block-item-height">${s}</span></div>`;
+      d.onclick = () => { sel.value = s; loadStem(s); };
+      bl.appendChild(d);
+    });
+  } catch(e) {
+    document.getElementById('block-list').innerHTML = '<div class="loading">Error loading stems</div>';
+  }
+}
+
+async function loadStem(stem) {
+  document.getElementById('tx-body').innerHTML = '<tr><td colspan="5" class="loading">Loading analysis…</td></tr>';
+  try {
+    const r = await fetch('/api/blocks/' + stem);
+    allData = await r.json();
+    renderAll();
+  } catch(e) {
+    document.getElementById('tx-body').innerHTML = `<tr><td colspan="5" class="empty">Error: ${e.message}</td></tr>`;
+  }
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────
+function renderAll() {
+  if (!allData) return;
+  const summary = allData.analysis_summary;
+  const blocks  = allData.blocks || [];
+  allTxs = (blocks[0] && blocks[0].transactions) || [];
+
+  // Stats
+  set('stat-total',     fmt(summary.total_transactions_analyzed));
+  set('stat-flagged',   fmt(summary.flagged_transactions));
+  set('stat-median',    summary.fee_rate_stats.median_sat_vb.toFixed(1));
+  set('stat-heuristics', summary.heuristics_applied.length);
+
+  // Fee rate
+  const fs = summary.fee_rate_stats;
+  set('fee-min',  fs.min_sat_vb.toFixed(1));
+  set('fee-med',  fs.median_sat_vb.toFixed(1));
+  set('fee-mean', fs.mean_sat_vb.toFixed(1));
+  set('fee-max',  fs.max_sat_vb.toFixed(1));
+  set('fee-bar-min', fs.min_sat_vb.toFixed(1));
+  set('fee-bar-max', fs.max_sat_vb.toFixed(1));
+  const range = fs.max_sat_vb - fs.min_sat_vb || 1;
+  const medPct = ((fs.median_sat_vb - fs.min_sat_vb) / range * 100).toFixed(1);
+  document.getElementById('fee-median-marker').style.left = medPct + '%';
+
+  // Script type pie
+  renderPie(summary.script_type_distribution);
+
+  // Block list enrichment
+  const bl = document.getElementById('block-list');
+  bl.innerHTML = '';
+  blocks.forEach((b, i) => {
+    const d = document.createElement('div');
+    d.className = 'block-item' + (i === 0 ? ' active' : '');
+    d.innerHTML = `
+      <div class="block-item-meta">
+        <span class="block-item-height">#${b.block_height}</span>
+        <span class="block-item-txcount">${fmt(b.tx_count)} txs</span>
+        ${b.analysis_summary.flagged_transactions > 0
+          ? `<span class="pill" style="background:rgba(255,69,96,.12);color:var(--red)">${fmt(b.analysis_summary.flagged_transactions)} flagged</span>` : ''}
+      </div>
+      <div class="block-item-hash">${b.block_hash.substring(0,32)}…</div>`;
+    bl.appendChild(d);
+  });
+
+  // Heuristic hit counts
+  const hCounts = {};
+  allTxs.forEach(tx => {
+    Object.entries(tx.heuristics || {}).forEach(([k, v]) => {
+      if (v.detected) hCounts[k] = (hCounts[k] || 0) + 1;
+    });
+  });
+  const hs = document.getElementById('h-stats');
+  hs.innerHTML = '';
+  Object.entries(hCounts).sort((a,b) => b[1]-a[1]).forEach(([k,v]) => {
+    hs.innerHTML += `<div class="h-stat">
+      <span class="h-stat-name">${k}</span>
+      <span class="h-stat-count">${fmt(v)}</span>
+    </div>`;
+  });
+  if (!Object.keys(hCounts).length) hs.innerHTML = '<div class="loading">—</div>';
+
+  // Classification filter chips
+  const classes = [...new Set(allTxs.map(t => t.classification))].sort();
+  const chips = document.getElementById('class-chips');
+  chips.innerHTML = '';
+  classes.forEach(c => {
+    const el = document.createElement('div');
+    el.className = 'chip' + (filterClass === c ? ' on' : '');
+    el.style.setProperty('--cc', CLASS_COLOR[c] || '#888');
+    if (filterClass === c) { el.style.background = (CLASS_COLOR[c] || '#888') + '22'; el.style.borderColor = CLASS_COLOR[c] || '#888'; el.style.color = CLASS_COLOR[c] || '#888'; }
+    el.textContent = c.replace('_', ' ');
+    el.onclick = () => { filterClass = filterClass === c ? null : c; renderAll(); };
+    chips.appendChild(el);
+  });
+
+  renderTable();
+}
+
+function renderTable() {
+  const search = filterSearch.toLowerCase();
+  const rows = allTxs.filter(tx => {
+    if (filterClass && tx.classification !== filterClass) return false;
+    if (search && !tx.txid.toLowerCase().includes(search)) return false;
+    return true;
+  });
+
+  set('tx-count-label', `${fmt(rows.length)} / ${fmt(allTxs.length)} transactions`);
+
+  const hKeys = rows.length ? Object.keys(rows[0].heuristics || {}) : [];
+  const tbody = document.getElementById('tx-body');
+  tbody.innerHTML = '';
+
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty"><div class="empty-icon">🔍</div>No transactions match filter</td></tr>';
+    return;
+  }
+
+  rows.forEach(tx => {
+    const tr = document.createElement('tr');
+    const flagged = Object.values(tx.heuristics || {}).some(h => h.detected);
+    const cioh = tx.heuristics?.cioh?.detected;
+    const cd   = tx.heuristics?.change_detection;
+
+    // Heuristic dots
+    const dots = hKeys.map(k =>
+      `<div class="h-dot ${tx.heuristics[k]?.detected ? 'hit' : ''}" title="${k}"></div>`
+    ).join('');
+
+    tr.innerHTML = `
+      <td class="txid-cell" title="${tx.txid}">${tx.txid.substring(0,12)}…${tx.txid.substring(52)}</td>
+      <td><span class="badge badge-${tx.classification}">${tx.classification.replace('_',' ')}</span></td>
+      <td><div class="h-dots">${dots}</div></td>
+      <td>${cioh ? '<span style="color:var(--gold)">●</span>' : '<span style="color:var(--muted)">○</span>'}</td>
+      <td style="font-size:10px;color:var(--muted)">${cd?.detected ? `idx ${cd.likely_change_index ?? '?'} <span style="color:var(--cyan)">${cd.confidence||''}</span>` : '—'}</td>`;
+
+    tr.style.cursor = 'pointer';
+    tr.onclick = () => toggleDetail(tr, tx, hKeys);
+    tbody.appendChild(tr);
+  });
+}
+
+function toggleDetail(tr, tx, hKeys) {
+  const next = tr.nextSibling;
+  if (next && next.classList && next.classList.contains('detail-row')) {
+    next.remove(); tr.classList.remove('expanded'); return;
+  }
+  tr.classList.toggle('expanded');
+  const det = document.createElement('tr');
+  det.className = 'detail-row';
+
+  const cards = Object.entries(tx.heuristics || {}).map(([k, v]) => {
+    const extras = Object.entries(v)
+      .filter(([kk]) => kk !== 'detected')
+      .map(([kk, vv]) => `<div class="heuristic-meta">${kk}: ${vv}</div>`)
+      .join('');
+    return `<div class="heuristic-card">
+      <div class="heuristic-name">${k}</div>
+      <div class="heuristic-detected ${v.detected ? 'yes' : 'no'}">${v.detected ? '✓ detected' : '○ not detected'}</div>
+      ${extras}
+    </div>`;
+  }).join('');
+
+  det.innerHTML = `<td colspan="5">
+    <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:8px">
+      ${tx.txid} · <span class="badge badge-${tx.classification}">${tx.classification.replace('_',' ')}</span>
+    </div>
+    <div class="detail-grid">${cards}</div>
+  </td>`;
+  tr.after(det);
+}
+
+// ── Pie chart ──────────────────────────────────────────────────────────────
+function renderPie(dist) {
+  const svg = document.getElementById('script-chart');
+  const legend = document.getElementById('script-legend');
+  svg.innerHTML = ''; legend.innerHTML = '';
+
+  const entries = Object.entries(dist).filter(([,v]) => v > 0)
+    .sort((a,b) => b[1]-a[1]);
+  const total = entries.reduce((s,[,v]) => s+v, 0) || 1;
+
+  if (!d3) {
+    // Fallback: simple bar chart with divs
+    entries.forEach(([k, v]) => {
+      const pct = (v/total*100).toFixed(1);
+      legend.innerHTML += `<div class="legend-item">
+        <div class="legend-dot" style="background:${COLORS[k]||'#888'}"></div>
+        ${k} <span style="color:var(--muted);margin-left:2px">${pct}%</span>
+      </div>`;
+    });
+    // Simple horizontal bar
+    svg.style.display = 'none';
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;height:12px;border-radius:6px;overflow:hidden;margin:8px 0';
+    entries.forEach(([k,v]) => {
+      const d = document.createElement('div');
+      d.style.cssText = `flex:${v};background:${COLORS[k]||'#888'};`;
+      d.title = `${k}: ${v}`;
+      wrap.appendChild(d);
+    });
+    svg.parentNode.insertBefore(wrap, svg);
+    return;
+  }
+
+  // D3 donut
+  const W = svg.getBoundingClientRect().width || 200, H = 160;
+  const R = Math.min(W, H) / 2 - 8, r = R * 0.55;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+  const g = d3.select(svg).append('g')
+    .attr('transform', `translate(${W/2},${H/2})`);
+
+  const pie = d3.pie().sort(null).value(d => d[1])(entries);
+  const arc = d3.arc().innerRadius(r).outerRadius(R);
+
+  g.selectAll('path').data(pie).join('path')
+    .attr('d', arc)
+    .attr('fill', d => COLORS[d.data[0]] || '#888')
+    .attr('stroke', '#050810').attr('stroke-width', 1.5);
+
+  // Center label
+  g.append('text').attr('text-anchor','middle').attr('dy','-0.2em')
+    .attr('fill','var(--text)').attr('font-size','20px').attr('font-weight','700')
+    .text(fmtK(total));
+  g.append('text').attr('text-anchor','middle').attr('dy','1.1em')
+    .attr('fill','var(--muted)').attr('font-size','10px').text('outputs');
+
+  // Legend
+  entries.slice(0,6).forEach(([k,v]) => {
+    legend.innerHTML += `<div class="legend-item">
+      <div class="legend-dot" style="background:${COLORS[k]||'#888'}"></div>
+      ${k} <span style="color:var(--muted);margin-left:2px">${(v/total*100).toFixed(0)}%</span>
+    </div>`;
+  });
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function set(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
+function fmt(n) { return n == null ? '—' : n.toLocaleString(); }
+function fmtK(n) { return n >= 1e6 ? (n/1e6).toFixed(1)+'M' : n >= 1e3 ? (n/1e3).toFixed(0)+'k' : String(n); }
+
+// ── Search ─────────────────────────────────────────────────────────────────
+document.getElementById('tx-search').addEventListener('input', e => {
+  filterSearch = e.target.value;
+  renderTable();
+});
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+boot();
+</script>
+</body>
+</html>

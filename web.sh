@@ -1,27 +1,37 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-###############################################################################
-# web.sh — Web visualizer
-#
-# Starts the web visualizer server.
-#
-# Behavior:
-#   - Reads PORT env var (default: 3000)
-#   - Prints the URL (e.g., http://127.0.0.1:3000) to stdout
-#   - Keeps running until terminated (CTRL+C / SIGTERM)
-#   - Must serve GET /api/health -> 200 { "ok": true }
-#
-# TODO: Replace the stub below with your web server start command.
-###############################################################################
-
 PORT="${PORT:-3000}"
+export PORT
 
-# TODO: Start your web server here, for example:
-#   exec node server.js
-#   exec python -m http.server "$PORT"
-#   exec cargo run --release -- --port "$PORT"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
 
-echo "Error: Web visualizer is not yet implemented" >&2
-echo "Set up your web server to listen on port $PORT" >&2
+# Try release binary first, fall back to debug build
+for BIN in \
+    "$SCRIPT_DIR/target/release/web_server" \
+    "$SCRIPT_DIR/target/release/chain-lens-web" \
+    "$SCRIPT_DIR/target/debug/web_server" \
+    "$SCRIPT_DIR/target/debug/chain-lens-web"
+do
+    if [ -x "$BIN" ]; then
+        exec "$BIN"
+    fi
+done
+
+# Binary not found — build first
+echo "Building web server..." >&2
+cargo build --release --bin web_server 2>/dev/null || \
+cargo build --release 2>/dev/null
+
+for BIN in \
+    "$SCRIPT_DIR/target/release/web_server" \
+    "$SCRIPT_DIR/target/release/chain-lens-web"
+do
+    if [ -x "$BIN" ]; then
+        exec "$BIN"
+    fi
+done
+
+echo "Error: could not find web_server binary after build" >&2
 exit 1

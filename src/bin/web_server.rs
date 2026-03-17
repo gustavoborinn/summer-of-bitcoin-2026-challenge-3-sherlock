@@ -303,6 +303,40 @@ async fn analyze_block(ExtractJson(payload): ExtractJson<BlockRequest>) -> Respo
     }
 }
 
+// ─── Block analysis endpoints ─────────────────────────────────────────────────
+
+/// List available block analysis stems (files in out/).
+/// GET /api/blocks → ["blk04330", "blk05051"]
+async fn list_blocks() -> impl IntoResponse {
+    let mut stems: Vec<String> = Vec::new();
+    if let Ok(entries) = fs::read_dir(out_dir()) {
+        for e in entries.flatten() {
+            let p = e.path();
+            if p.extension().and_then(|x| x.to_str()) == Some("json") {
+                if let Some(s) = p.file_stem().and_then(|x| x.to_str()) {
+                    stems.push(s.to_string());
+                }
+            }
+        }
+    }
+    stems.sort();
+    Json(json!({ "ok": true, "stems": stems }))
+}
+
+/// Serve the analysis JSON for a given stem.
+/// GET /api/blocks/:stem → contents of out/<stem>.json
+async fn get_block(ExtractPath(stem): ExtractPath<String>) -> Response {
+    if !stem.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-') {
+        return err_response(StatusCode::BAD_REQUEST, "INVALID_STEM", "invalid stem");
+    }
+    let path = out_dir().join(format!("{}.json", stem));
+    match fs::read_to_string(&path) {
+        Ok(c) => (StatusCode::OK, [(header::CONTENT_TYPE, "application/json")], c).into_response(),
+        Err(_) => err_response(StatusCode::NOT_FOUND, "NOT_FOUND", format!("no analysis for '{}'", stem)),
+    }
+}
+
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 #[tokio::main]
