@@ -356,6 +356,8 @@ async fn main() {
     let app = Router::new()
         // ── Required by the challenge spec ──────────────────────────────────
         .route("/api/health", get(health))
+        .route("/api/blocks", get(list_blocks))
+        .route("/api/blocks/:stem", get(get_block))
         // /api/analyze — primary endpoint named in the README acceptance criteria.
         // Accepts {"fixture":"<raw fixture JSON string>"} and returns the analysis.
         .route("/api/analyze", post(analyze_tx))
