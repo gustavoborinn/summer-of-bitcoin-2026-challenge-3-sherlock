@@ -1,6 +1,6 @@
 // src/core/analyzer/block_analyzer.rs
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use serde_json::{json, Value};
 
@@ -64,6 +64,77 @@ pub const HEURISTICS_APPLIED: &[&str] = &[
     "address_reuse",
     "peeling_chain",
 ];
+
+const CLASSIFICATIONS: &[&str] = &[
+    "simple_payment",
+    "consolidation",
+    "coinjoin",
+    "self_transfer",
+    "batch_payment",
+    "unknown",
+];
+
+fn empty_heuristic_counts() -> BTreeMap<String, u64> {
+    HEURISTICS_APPLIED
+        .iter()
+        .map(|id| ((*id).to_string(), 0))
+        .collect()
+}
+
+fn empty_classification_counts() -> BTreeMap<String, u64> {
+    CLASSIFICATIONS
+        .iter()
+        .map(|id| ((*id).to_string(), 0))
+        .collect()
+}
+
+fn classification_id(classification: &TxClassification) -> &'static str {
+    match classification {
+        TxClassification::SimplePayment => "simple_payment",
+        TxClassification::Consolidation => "consolidation",
+        TxClassification::Coinjoin => "coinjoin",
+        TxClassification::SelfTransfer => "self_transfer",
+        TxClassification::BatchPayment => "batch_payment",
+        TxClassification::Unknown => "unknown",
+    }
+}
+
+fn detected_heuristics(analysis: &TxAnalysis) -> Vec<String> {
+    HEURISTICS_APPLIED
+        .iter()
+        .filter(|id| {
+            analysis
+                .heuristics
+                .get(**id)
+                .map(|h| h.detected)
+                .unwrap_or(false)
+        })
+        .map(|id| (*id).to_string())
+        .collect()
+}
+
+fn record_analysis(
+    analysis: &TxAnalysis,
+    heuristic_counts: &mut BTreeMap<String, u64>,
+    classification_counts: &mut BTreeMap<String, u64>,
+) {
+    for id in detected_heuristics(analysis) {
+        *heuristic_counts.entry(id).or_insert(0) += 1;
+    }
+
+    let classification = classification_id(&analysis.classification).to_string();
+    *classification_counts.entry(classification).or_insert(0) += 1;
+}
+
+fn is_notable_classification(classification: &TxClassification) -> bool {
+    matches!(
+        classification,
+        TxClassification::Coinjoin
+            | TxClassification::Consolidation
+            | TxClassification::SelfTransfer
+            | TxClassification::BatchPayment
+    )
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Heuristic pipeline
@@ -172,10 +243,19 @@ struct BlockResult {
     timestamp: u32,
     tx_count: usize,
     flagged_real: u64,
+    heuristic_counts: BTreeMap<String, u64>,
+    classification_counts: BTreeMap<String, u64>,
+    notable_transactions: Vec<NotableTransaction>,
     script_dist: ScriptTypeDistribution,
     fee_rates: Vec<f64>,
     /// Populated only for blocks[0]; empty for all others.
     transactions: Vec<TxAnalysis>,
+}
+
+struct NotableTransaction {
+    txid: String,
+    classification: TxClassification,
+    detected_heuristics: Vec<String>,
 }
 
 fn analyze_one_block(
@@ -266,6 +346,9 @@ fn analyze_one_block(
     // ── Pass 2: main analysis loop ────────────────────────────────────────────
     let mut script_dist = ScriptTypeDistribution::default();
     let mut fee_rates: Vec<f64> = Vec::with_capacity(non_cb_count);
+    let mut heuristic_counts = empty_heuristic_counts();
+    let mut classification_counts = empty_classification_counts();
+    let mut notable_transactions: Vec<NotableTransaction> = Vec::new();
     let mut transactions: Vec<TxAnalysis> = if include_transactions {
         Vec::with_capacity(tx_count)
     } else {
@@ -282,8 +365,14 @@ fn analyze_one_block(
         }
 
         if is_coinbase {
+            let analysis = coinbase_analysis(&txids[0]);
+            record_analysis(
+                &analysis,
+                &mut heuristic_counts,
+                &mut classification_counts,
+            );
             if include_transactions {
-                transactions.push(coinbase_analysis(&txids[0]));
+                transactions.push(analysis);
             }
             continue;
         }
@@ -323,8 +412,22 @@ fn analyze_one_block(
         fee_rates.push(rate);
         // ── Heuristics ────────────────────────────────────────────────────────
         let analysis = apply_heuristics(&txids[tx_idx], tx, &prevout_map, &ctx)?;
+        record_analysis(
+            &analysis,
+            &mut heuristic_counts,
+            &mut classification_counts,
+        );
         if analysis.is_flagged() {
             flagged_real += 1;
+        }
+        if notable_transactions.len() < 10
+            && is_notable_classification(&analysis.classification)
+        {
+            notable_transactions.push(NotableTransaction {
+                txid: analysis.txid.clone(),
+                classification: analysis.classification.clone(),
+                detected_heuristics: detected_heuristics(&analysis),
+            });
         }
         if include_transactions {
             transactions.push(analysis);
@@ -337,6 +440,9 @@ fn analyze_one_block(
         timestamp,
         tx_count,
         flagged_real,
+        heuristic_counts,
+        classification_counts,
+        notable_transactions,
         script_dist,
         fee_rates,
         transactions,
@@ -351,11 +457,11 @@ fn analyze_one_block(
 ///
 /// # Transaction array scope
 /// - `blocks[0].transactions`: full array, `len() == tx_count`.
-/// - `blocks[1+].transactions`: empty array `[]` — avoids grader timeout.
+/// - `blocks[1+].transactions`: empty array `[]` — avoids very large JSON.
 ///
 /// # flagged_transactions invariant
-/// blocks[1+] emit `"flagged_transactions": 0` because transactions[] is empty.
-/// File-level sum equals sum of emitted per-block values (not real counts).
+/// Every block emits its real flagged count, even when full transaction rows are
+/// omitted. The file-level count is the sum of all per-block values.
 ///
 /// # Fee rate stats
 /// All rates across all blocks → one Vec<f64> → `compute_fee_rate_stats` once.
@@ -387,12 +493,20 @@ pub fn analyze_block_file(
     let total_transactions_analyzed: usize =
         block_results.iter().map(|r| r.tx_count).sum();
 
-    // File-level flagged == sum of EMITTED per-block values (blocks[1+] emit 0).
-    let file_flagged_total: u64 = block_results
-        .iter()
-        .enumerate()
-        .map(|(idx, r)| if idx == 0 { r.flagged_real } else { 0 })
-        .sum();
+    let file_flagged_total: u64 = block_results.iter().map(|r| r.flagged_real).sum();
+
+    let mut file_heuristic_counts = empty_heuristic_counts();
+    let mut file_classification_counts = empty_classification_counts();
+    for r in &block_results {
+        for (id, count) in &r.heuristic_counts {
+            *file_heuristic_counts.entry(id.clone()).or_insert(0) += count;
+        }
+        for (classification, count) in &r.classification_counts {
+            *file_classification_counts
+                .entry(classification.clone())
+                .or_insert(0) += count;
+        }
+    }
 
     let mut file_script_dist = ScriptTypeDistribution::default();
     for r in &block_results {
@@ -403,7 +517,6 @@ pub fn analyze_block_file(
     let mut blocks_json: Vec<Value> = Vec::with_capacity(block_count);
     for (idx, result) in block_results.iter().enumerate() {
         let block_fee_stats = compute_fee_rate_stats(&result.fee_rates);
-        let emitted_flagged: u64 = if idx == 0 { result.flagged_real } else { 0 };
 
         let transactions_json: Vec<Value> = if idx == 0 {
             result.transactions.iter().map(|ta| json!({
@@ -415,6 +528,16 @@ pub fn analyze_block_file(
             vec![]
         };
 
+        let notable_transactions: Vec<Value> = result
+            .notable_transactions
+            .iter()
+            .map(|tx| json!({
+                "txid": &tx.txid,
+                "classification": classification_id(&tx.classification),
+                "detected_heuristics": &tx.detected_heuristics,
+            }))
+            .collect();
+
         blocks_json.push(json!({
             "block_hash":   result.block_hash,
             "block_height": result.block_height,
@@ -423,10 +546,13 @@ pub fn analyze_block_file(
             "analysis_summary": {
                 "total_transactions_analyzed": result.tx_count,
                 "heuristics_applied":          HEURISTICS_APPLIED,
-                "flagged_transactions":        emitted_flagged,
+                "heuristic_findings":          &result.heuristic_counts,
+                "flagged_transactions":        result.flagged_real,
+                "classification_distribution": &result.classification_counts,
                 "script_type_distribution":    result.script_dist,
                 "fee_rate_stats":              block_fee_stats,
             },
+            "notable_transactions": notable_transactions,
             "transactions": transactions_json,
         }));
     }
@@ -439,7 +565,9 @@ pub fn analyze_block_file(
         "analysis_summary": {
             "total_transactions_analyzed": total_transactions_analyzed,
             "heuristics_applied":          HEURISTICS_APPLIED,
+            "heuristic_findings":          file_heuristic_counts,
             "flagged_transactions":        file_flagged_total,
+            "classification_distribution": file_classification_counts,
             "script_type_distribution":    file_script_dist,
             "fee_rate_stats":              file_fee_stats,
         },

@@ -57,8 +57,13 @@ pub fn run(
         if !checked.insert(script.to_vec()) {
             continue; // already evaluated this script in this tx
         }
-        if block_script_index.contains_key(script) {
-            reused_count += 1;
+        if let Some(txids) = block_script_index.get(script) {
+            // The current transaction's own output is already in the block
+            // index. Require at least two distinct txids to prove cross-tx
+            // reuse rather than counting the output against itself.
+            if txids.len() >= 2 {
+                reused_count += 1;
+            }
         }
     }
 

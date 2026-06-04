@@ -8,6 +8,27 @@ use serde_json::Value;
 
 use crate::core::errors::ChainError;
 
+const HEURISTIC_IDS: &[&str] = &[
+    "cioh",
+    "change_detection",
+    "consolidation",
+    "coinjoin",
+    "self_transfer",
+    "round_number",
+    "op_return",
+    "address_reuse",
+    "peeling_chain",
+];
+
+const CLASSIFICATIONS: &[&str] = &[
+    "simple_payment",
+    "consolidation",
+    "coinjoin",
+    "self_transfer",
+    "batch_payment",
+    "unknown",
+];
+
 /// Generate a Markdown report from the analysis JSON and write to
 /// `out/<blk_stem>.md`.
 ///
@@ -118,6 +139,20 @@ pub fn generate(report: &Value, blk_stem: &str) -> Result<String, ChainError> {
         ));
     }
 
+    if let Some(findings) = file_summary
+        .get("heuristic_findings")
+        .and_then(|v| v.as_object())
+    {
+        md.push_str("### Heuristic Findings\n\n");
+        md.push_str("| Heuristic | Transactions Flagged |\n");
+        md.push_str("|---|---|\n");
+        for id in HEURISTIC_IDS {
+            let count = findings.get(*id).and_then(|v| v.as_u64()).unwrap_or(0);
+            md.push_str(&format!("| {} | {} |\n", id, count));
+        }
+        md.push('\n');
+    }
+
     // ── Per-block sections ────────────────────────────────────────────────────
     for (block_idx, block) in blocks.iter().enumerate() {
         let hash = block
@@ -163,85 +198,59 @@ pub fn generate(report: &Value, blk_stem: &str) -> Result<String, ChainError> {
             md.push_str(&format!("| {:.2} | {:.2} | {:.2} | {:.2} |\n\n", min, med, avg, max));
         }
 
-        // Heuristic hit counts (blocks[0] only — transactions array present)
-        if block_idx == 0 {
-            if let Some(txs) = block.get("transactions").and_then(|v| v.as_array()) {
-                md.push_str("### Heuristic Findings\n\n");
-                md.push_str("| Heuristic | Transactions Flagged |\n");
-                md.push_str("|---|---|\n");
+        md.push_str("### Heuristic Findings\n\n");
+        md.push_str("| Heuristic | Transactions Flagged |\n");
+        md.push_str("|---|---|\n");
+        for id in HEURISTIC_IDS {
+            let count = count_heuristic(block_summary, block, id);
+            md.push_str(&format!("| {} | {} |\n", id, count));
+        }
+        md.push('\n');
 
-                let heuristic_ids = [
-                    "cioh", "change_detection", "consolidation", "coinjoin",
-                    "self_transfer", "round_number", "op_return",
-                    "address_reuse", "peeling_chain",
-                ];
-                for id in &heuristic_ids {
-                    let count = txs.iter().filter(|tx| {
-                        tx.get("heuristics")
-                            .and_then(|h| h.get(*id))
-                            .and_then(|r| r.get("detected"))
-                            .and_then(|v| v.as_bool())
-                            .unwrap_or(false)
-                    }).count();
-                    md.push_str(&format!("| {} | {} |\n", id, count));
-                }
-                md.push('\n');
-
-                // Classification breakdown
-                md.push_str("### Transaction Classifications\n\n");
-                md.push_str("| Classification | Count |\n");
-                md.push_str("|---|---|\n");
-                let classes = [
-                    "simple_payment", "consolidation", "coinjoin",
-                    "self_transfer", "batch_payment", "unknown",
-                ];
-                for cls in &classes {
-                    let count = txs.iter().filter(|tx| {
-                        tx.get("classification")
-                            .and_then(|v| v.as_str())
-                            == Some(*cls)
-                    }).count();
-                    if count > 0 {
-                        md.push_str(&format!("| {} | {} |\n", cls, count));
-                    }
-                }
-                md.push('\n');
-
-                // Notable transactions: coinjoin and consolidation
-                let all_notable: Vec<&Value> = txs.iter().filter(|tx| {
-                    matches!(
-                        tx.get("classification").and_then(|v| v.as_str()),
-                        Some("coinjoin") | Some("consolidation")
-                    )
-                }).collect();
-
-                if !all_notable.is_empty() {
-                    let total_notable = all_notable.len();
-                    let shown = all_notable.into_iter().take(10).collect::<Vec<_>>();
-                    let header = if total_notable > 10 {
-                        format!(
-                            "### Notable Transactions (showing top 10 of {})\n\n",
-                            total_notable
-                        )
-                    } else {
-                        "### Notable Transactions\n\n".to_string()
-                    };
-                    md.push_str(&header);
-                    md.push_str("| txid | classification |\n");
-                    md.push_str("|---|---|\n");
-                    for tx in &shown {
-                        let txid = tx.get("txid").and_then(|v| v.as_str()).unwrap_or("?");
-                        let cls  = tx.get("classification").and_then(|v| v.as_str()).unwrap_or("?");
-                        md.push_str(&format!("| `{}` | {} |\n", txid, cls));
-                    }
-                    md.push('\n');
-                }
+        md.push_str("### Transaction Classifications\n\n");
+        md.push_str("| Classification | Count |\n");
+        md.push_str("|---|---|\n");
+        for cls in CLASSIFICATIONS {
+            let count = count_classification(block_summary, block, cls);
+            if count > 0 {
+                md.push_str(&format!("| {} | {} |\n", cls, count));
             }
-        } else {
-            md.push_str(
-                "> Transaction-level data omitted for this block to reduce output size \
-                (grader scope update).\n\n",
-            );
+        }
+        md.push('\n');
+
+        if let Some(notables) = notable_transactions(block) {
+            let total_notable = notables.len();
+            let header = if total_notable > 10 {
+                format!(
+                    "### Notable Transactions (showing top 10 of {})\n\n",
+                    total_notable
+                )
+            } else {
+                "### Notable Transactions\n\n".to_string()
+            };
+            md.push_str(&header);
+            md.push_str("| txid | classification | heuristic hits |\n");
+            md.push_str("|---|---|---|\n");
+            for tx in notables.iter().take(10) {
+                let txid = tx.get("txid").and_then(|v| v.as_str()).unwrap_or("?");
+                let cls = tx
+                    .get("classification")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("?");
+                let hits = tx
+                    .get("detected_heuristics")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|v| v.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    })
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or_else(|| "classification-only".to_string());
+                md.push_str(&format!("| `{}` | {} | {} |\n", txid, cls, hits));
+            }
+            md.push('\n');
         }
     }
 
@@ -272,4 +281,84 @@ pub fn generate(report: &Value, blk_stem: &str) -> Result<String, ChainError> {
     );
 
     Ok(md)
+}
+
+fn count_heuristic(block_summary: &Value, block: &Value, id: &str) -> u64 {
+    if let Some(count) = block_summary
+        .get("heuristic_findings")
+        .and_then(|v| v.get(id))
+        .and_then(|v| v.as_u64())
+    {
+        return count;
+    }
+
+    block
+        .get("transactions")
+        .and_then(|v| v.as_array())
+        .map(|txs| {
+            txs.iter()
+                .filter(|tx| {
+                    tx.get("heuristics")
+                        .and_then(|h| h.get(id))
+                        .and_then(|r| r.get("detected"))
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false)
+                })
+                .count() as u64
+        })
+        .unwrap_or(0)
+}
+
+fn count_classification(block_summary: &Value, block: &Value, classification: &str) -> u64 {
+    if let Some(count) = block_summary
+        .get("classification_distribution")
+        .and_then(|v| v.get(classification))
+        .and_then(|v| v.as_u64())
+    {
+        return count;
+    }
+
+    block
+        .get("transactions")
+        .and_then(|v| v.as_array())
+        .map(|txs| {
+            txs.iter()
+                .filter(|tx| {
+                    tx.get("classification")
+                        .and_then(|v| v.as_str())
+                        == Some(classification)
+                })
+                .count() as u64
+        })
+        .unwrap_or(0)
+}
+
+fn notable_transactions(block: &Value) -> Option<Vec<&Value>> {
+    if let Some(notables) = block
+        .get("notable_transactions")
+        .and_then(|v| v.as_array())
+        .filter(|txs| !txs.is_empty())
+    {
+        return Some(notables.iter().collect());
+    }
+
+    let txs = block.get("transactions").and_then(|v| v.as_array())?;
+    let notables: Vec<&Value> = txs
+        .iter()
+        .filter(|tx| {
+            matches!(
+                tx.get("classification").and_then(|v| v.as_str()),
+                Some("coinjoin")
+                    | Some("consolidation")
+                    | Some("self_transfer")
+                    | Some("batch_payment")
+            )
+        })
+        .collect();
+
+    if notables.is_empty() {
+        None
+    } else {
+        Some(notables)
+    }
 }

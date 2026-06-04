@@ -145,35 +145,17 @@ pub fn validate(report: &Value) -> Result<(), ChainError> {
             });
         }
 
-        // Validate classification enum values in blocks[0]
-        let valid_classifications = [
-            "simple_payment", "consolidation", "coinjoin",
-            "self_transfer", "batch_payment", "unknown",
-        ];
-        for (i, tx) in txs.iter().enumerate() {
-            if let Some(cls) = tx.get("classification").and_then(|v| v.as_str()) {
-                if !valid_classifications.contains(&cls) {
-                    return Err(ChainError::InvalidField {
-                        field: "classification",
-                        detail: format!("tx[{}] has invalid classification: {}", i, cls),
-                    });
-                }
-            }
-        }
+        validate_transaction_rows(txs, "blocks[0].transactions")?;
+        validate_flagged_matches_rows(block0, txs, "blocks[0]")?;
     }
 
-    // blocks[1+]: transactions must be []        ← NOVO
+    // blocks[1+]: transactions are optional. If a block includes rows, validate
+    // the rows and ensure the per-block flagged count matches those rows.
     for (i, block) in blocks.iter().enumerate().skip(1) {
         if let Some(txs) = block.get("transactions").and_then(|v| v.as_array()) {
             if !txs.is_empty() {
-                return Err(ChainError::InvalidField {
-                    field: "blocks[n].transactions",
-                    detail: format!(
-                        "blocks[{}].transactions must be [] but has {} entries",
-                        i,
-                        txs.len()
-                    ),
-                });
+                validate_transaction_rows(txs, &format!("blocks[{}].transactions", i))?;
+                validate_flagged_matches_rows(block, txs, &format!("blocks[{}]", i))?;
             }
         }
     }
@@ -181,7 +163,81 @@ pub fn validate(report: &Value) -> Result<(), ChainError> {
     Ok(())
 }
 
-// validate_fee_stats — ausente agora é Err        ← ALTERADO
+fn validate_transaction_rows(txs: &[Value], context: &str) -> Result<(), ChainError> {
+    let valid_classifications = [
+        "simple_payment",
+        "consolidation",
+        "coinjoin",
+        "self_transfer",
+        "batch_payment",
+        "unknown",
+    ];
+
+    for (i, tx) in txs.iter().enumerate() {
+        let cls = tx
+            .get("classification")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ChainError::InvalidField {
+                field: "classification",
+                detail: format!("{}[{}] is missing classification", context, i),
+            })?;
+
+        if !valid_classifications.contains(&cls) {
+            return Err(ChainError::InvalidField {
+                field: "classification",
+                detail: format!("{}[{}] has invalid classification: {}", context, i, cls),
+            });
+        }
+    }
+
+    Ok(())
+}
+
+fn validate_flagged_matches_rows(
+    block: &Value,
+    txs: &[Value],
+    context: &str,
+) -> Result<(), ChainError> {
+    let expected = block
+        .get("analysis_summary")
+        .and_then(|s| s.get("flagged_transactions"))
+        .and_then(|v| v.as_u64())
+        .ok_or_else(|| ChainError::InvalidField {
+            field: "flagged_transactions",
+            detail: format!("{}: missing flagged_transactions", context),
+        })?;
+
+    let actual = txs
+        .iter()
+        .filter(|tx| {
+            tx.get("heuristics")
+                .and_then(|h| h.as_object())
+                .map(|heuristics| {
+                    heuristics.values().any(|result| {
+                        result
+                            .get("detected")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(false)
+                    })
+                })
+                .unwrap_or(false)
+        })
+        .count() as u64;
+
+    if expected != actual {
+        return Err(ChainError::InvalidField {
+            field: "flagged_transactions",
+            detail: format!(
+                "{}: flagged_transactions={} but transaction rows contain {} flagged",
+                context, expected, actual
+            ),
+        });
+    }
+
+    Ok(())
+}
+
+// validate_fee_stats — missing stats are an error.
 fn validate_fee_stats(summary: &Value, context: &str) -> Result<(), ChainError> {
     let stats = match summary.get("fee_rate_stats") {
         Some(s) => s,
